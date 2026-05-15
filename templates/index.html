@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gomoku</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <div class="home-wrapper">
+    <header class="home-header">
+      <div class="logo-kanji">五目並べ</div>
+      <h1>GOMOKU</h1>
+      <p class="subtitle">Paris × Ulaanbaatar</p>
+    </header>
+
+    <div class="home-cards">
+      <!-- Create game -->
+      <div class="card">
+        <div class="card-number">01</div>
+        <h2>Créer une partie</h2>
+        <p>Génère un code à partager avec ton adversaire.</p>
+        <button id="btn-create" class="btn btn-primary">Nouvelle partie →</button>
+        <div id="create-result" class="code-display hidden">
+          <span class="label">Code à partager</span>
+          <span id="game-code" class="code"></span>
+          <button id="btn-copy" class="btn btn-ghost">Copier</button>
+          <div class="waiting-msg">⏳ En attente de l'adversaire…</div>
+        </div>
+      </div>
+
+      <!-- Join game -->
+      <div class="card">
+        <div class="card-number">02</div>
+        <h2>Rejoindre une partie</h2>
+        <p>Entre le code reçu par ton ami.</p>
+        <div class="input-row">
+          <input id="join-code" type="text" maxlength="8" placeholder="ex : A1B2C3D4" class="code-input" autocomplete="off">
+          <button id="btn-join" class="btn btn-primary">Rejoindre →</button>
+        </div>
+        <div id="join-error" class="error-msg hidden"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let myPlayerId = null;
+    let myGameId   = null;
+    let es         = null;
+
+    // ── Create ────────────────────────────────────────────────────────────────
+    document.getElementById("btn-create").addEventListener("click", async () => {
+      const res  = await fetch("/create", { method: "POST" });
+      const data = await res.json();
+      myPlayerId = data.player_id;
+      myGameId   = data.game_id;
+
+      document.getElementById("game-code").textContent = data.game_id;
+      document.getElementById("create-result").classList.remove("hidden");
+      document.getElementById("btn-create").disabled = true;
+
+      // Listen for opponent joining
+      es = new EventSource(`/stream/${myGameId}?player_id=${myPlayerId}`);
+      es.addEventListener("player_joined", () => {
+        es.close();
+        window.location.href = `/game/${myGameId}?player_id=${myPlayerId}`;
+      });
+    });
+
+    // ── Copy code ─────────────────────────────────────────────────────────────
+    document.getElementById("btn-copy").addEventListener("click", () => {
+      navigator.clipboard.writeText(document.getElementById("game-code").textContent);
+      document.getElementById("btn-copy").textContent = "Copié ✓";
+    });
+
+    // ── Join ──────────────────────────────────────────────────────────────────
+    document.getElementById("btn-join").addEventListener("click", async () => {
+      const code = document.getElementById("join-code").value.trim().toUpperCase();
+      const errEl = document.getElementById("join-error");
+      errEl.classList.add("hidden");
+
+      const res  = await fetch("/join", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ game_id: code }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        errEl.textContent = data.error || "Erreur inconnue";
+        errEl.classList.remove("hidden");
+        return;
+      }
+
+      myPlayerId = data.player_id;
+      myGameId   = data.game_id;
+      window.location.href = `/game/${myGameId}?player_id=${myPlayerId}`;
+    });
+
+    // Allow Enter key in join input
+    document.getElementById("join-code").addEventListener("keydown", e => {
+      if (e.key === "Enter") document.getElementById("btn-join").click();
+    });
+  </script>
+</body>
+</html>

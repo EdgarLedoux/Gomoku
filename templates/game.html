@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gomoku – {{ game_id }}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <div class="game-layout">
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="logo-kanji small">五目</div>
+      <h1 class="game-title">GOMOKU</h1>
+      <div class="game-code-label">Partie <span class="mono">{{ game_id }}</span></div>
+
+      <div class="player-info" id="my-info">
+        <div class="stone-icon" id="my-stone"></div>
+        <div>
+          <div class="player-label">Vous</div>
+          <div id="my-color-label" class="mono">–</div>
+        </div>
+      </div>
+
+      <div class="player-info" id="opp-info">
+        <div class="stone-icon opp" id="opp-stone"></div>
+        <div>
+          <div class="player-label">Adversaire</div>
+          <div id="opp-color-label" class="mono">–</div>
+        </div>
+      </div>
+
+      <div id="status-box" class="status-box">
+        <span id="status-text">Connexion…</span>
+      </div>
+
+      <div class="moves-title">Historique</div>
+      <ol id="moves-list" class="moves-list"></ol>
+
+      <button id="btn-resign" class="btn btn-danger" style="margin-top:auto">Abandonner</button>
+    </aside>
+
+    <!-- Board area -->
+    <main class="board-area">
+      <canvas id="board-canvas"></canvas>
+      <div id="overlay" class="overlay hidden">
+        <div class="overlay-content">
+          <div id="overlay-title"></div>
+          <button onclick="window.location.href='/'">← Retour à l'accueil</button>
+        </div>
+      </div>
+    </main>
+
+  </div>
+
+  <script src="/static/js/game.js"></script>
+  <script>
+    // Pass server-side data to JS
+    const GAME_ID = "{{ game_id }}";
+    const PLAYER_ID = new URLSearchParams(window.location.search).get("player_id");
+    initGame(GAME_ID, PLAYER_ID);
+  </script>
+</body>
+</html>
