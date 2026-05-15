@@ -21,7 +21,7 @@ gomoku/
 ## Lancer en local
 
 ```bash
-git clone https://github.com/<toi>/gomoku.git
+git clone https://github.com/EdgarLedoux/gomoku.git
 cd gomoku
 python -m venv .venv
 source .venv/bin/activate        # Windows : .venv\Scripts\activate
@@ -35,7 +35,7 @@ python app.py
 ### 1. Préparer ton compte
 
 1. Crée un compte sur [alwaysdata.com](https://www.alwaysdata.com)  
-2. Note ton **nom de compte** (ex : `tonpseudo`)
+2. Note ton **nom de compte** (ex : `gomoku`)
 
 ### 2. Uploader les fichiers
 
@@ -44,15 +44,15 @@ Via SSH (recommandé) :
 # Activer SSH dans : Administration → SSH → Activer
 ssh tonpseudo@ssh-tonpseudo.alwaysdata.net
 cd ~
-git clone https://github.com/<toi>/gomoku.git
+git clone https://github.com/EdgarLedoux/gomoku.git
 ```
 
-Ou via FTP (FileZilla) vers `/home/tonpseudo/gomoku/`.
+Ou via FTP (FileZilla) vers `/home/gomoku/gomoku/`.
 
 ### 3. Installer les dépendances
 
 ```bash
-ssh tonpseudo@ssh-tonpseudo.alwaysdata.net
+ssh gomoku@ssh-gomoku.alwaysdata.net
 cd ~/gomoku
 pip install -r requirements.txt --user
 ```
@@ -65,10 +65,10 @@ Ouvre `wsgi.py` et remplace `<your_username>` par ton nom de compte AlwaysData.
 
 1. Va dans **Web → Sites → Ajouter un site**
 2. **Type** : Python WSGI
-3. **Répertoire de travail** : `/home/tonpseudo/gomoku`
+3. **Répertoire de travail** : `/home/gomoku/gomoku`
 4. **Fichier WSGI** : `wsgi.py`
 5. **Python** : 3.11 (ou la dernière dispo)
-6. Sauvegarde → ton jeu est en ligne sur `tonpseudo.alwaysdata.net`
+6. Sauvegarde → ton jeu est en ligne sur `gomoku.alwaysdata.net`
 
 ## Comment jouer
 
