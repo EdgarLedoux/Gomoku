@@ -48,7 +48,7 @@
   <script>
     let myPlayerId = null;
     let myGameId   = null;
-    let es         = null;
+    let pollInterval = null;
 
     // ── Create ────────────────────────────────────────────────────────────────
     document.getElementById("btn-create").addEventListener("click", async () => {
@@ -61,12 +61,15 @@
       document.getElementById("create-result").classList.remove("hidden");
       document.getElementById("btn-create").disabled = true;
 
-      // Listen for opponent joining
-      es = new EventSource(`/stream/${myGameId}?player_id=${myPlayerId}`);
-      es.addEventListener("player_joined", () => {
-        es.close();
-        window.location.href = `/game/${myGameId}?player_id=${myPlayerId}`;
-      });
+      // Polling pour détecter quand l'adversaire rejoint
+      pollInterval = setInterval(async () => {
+        const res2 = await fetch(`/state/${myGameId}?player_id=${myPlayerId}`);
+        const state = await res2.json();
+        if (state.opponent_joined) {
+          clearInterval(pollInterval);
+          window.location.href = `/game/${myGameId}?player_id=${myPlayerId}`;
+        }
+      }, 2000);
     });
 
     // ── Copy code ─────────────────────────────────────────────────────────────
