@@ -1,10 +1,8 @@
 import json
 import uuid
 import time
-import threading
 from flask import Flask, render_template, request, session, jsonify, Response, redirect, url_for
 import os
-from flask_socketio import SocketIO, emit
 
 app = Flask(__name__)
 app.secret_key = "CHANGE_THIS_SECRET_KEY_IN_PRODUCTION"
@@ -241,9 +239,4 @@ def resign():
 
 
 if __name__ == '__main__':
-    # Récupère le port donné par Alwaysdata (ou 5000 par défaut si tu testes sur ton PC)
-    port = int(os.environ.get("PORT", 5000))
-    
-    # host="::" est obligatoire pour qu'Alwaysdata puisse connecter ton jeu à internet
-    # (Si tu utilises Flask classique sans SocketIO, remplace socketio.run par app.run)
-    socketio.run(app, host="::", port=port)
+    app.run(debug=True)
