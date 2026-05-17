@@ -1,18 +1,15 @@
 import json
 import uuid
 import time
-from flask import Flask, render_template, request, session, jsonify, Response, redirect, url_for
 import os
+from flask import Flask, render_template, request, jsonify, Response, redirect, url_for
 
 app = Flask(__name__)
 app.secret_key = "CHANGE_THIS_SECRET_KEY_IN_PRODUCTION"
 
 # ── In-memory game state ─────────────────────────────────────────────────────
-# In production you'd use a database; for 2 players this is fine.
-
-games = {}          # game_id -> Game dict
-lobbies = {}        # game_id -> [player1_id, player2_id]
-sse_clients = {}    # game_id -> {player_id: queue}
+games = {}      # game_id -> Game dict
+lobbies = {}    # game_id -> [player1_id, player2_id]
 
 BOARD_SIZE = 15
 WIN_LENGTH = 5
@@ -26,16 +23,16 @@ def make_game(game_id, player1_id):
     return {
         "id": game_id,
         "board": empty_board(),
-        "players": {player1_id: "black"},   # first player = black
+        "players": {player1_id: "black"},
         "current_turn": "black",
         "winner": None,
         "moves": [],
         "created_at": time.time(),
+        "last_updated": time.time(),   # ← utilisé par le polling
     }
 
 
 # ── Win detection ────────────────────────────────────────────────────────────
-
 DIRECTIONS = [(1, 0), (0, 1), (1, 1), (1, -1)]
 
 
@@ -53,32 +50,6 @@ def check_win(board, row, col, color):
     return False
 
 
-# ── SSE helpers ──────────────────────────────────────────────────────────────
-
-def get_client_queue(game_id, player_id):
-    import queue
-    if game_id not in sse_clients:
-        sse_clients[game_id] = {}
-    if player_id not in sse_clients[game_id]:
-        sse_clients[game_id][player_id] = queue.Queue()
-    return sse_clients[game_id][player_id]
-
-
-def broadcast(game_id, event_type, data):
-    """Send an SSE event to all connected players in a game."""
-    if game_id not in sse_clients:
-        return
-    payload = f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
-    dead = []
-    for pid, q in sse_clients[game_id].items():
-        try:
-            q.put_nowait(payload)
-        except Exception:
-            dead.append(pid)
-    for pid in dead:
-        sse_clients[game_id].pop(pid, None)
-
-
 # ── Routes ───────────────────────────────────────────────────────────────────
 
 @app.route("/")
@@ -89,9 +60,7 @@ def index():
 @app.route("/create", methods=["POST"])
 def create_game():
     player_id = str(uuid.uuid4())
-    game_id = str(uuid.uuid4())[:8].upper()   # short code to share
-    session["player_id"] = player_id
-    session["game_id"] = game_id
+    game_id = str(uuid.uuid4())[:8].upper()
 
     games[game_id] = make_game(game_id, player_id)
     lobbies[game_id] = [player_id]
@@ -111,14 +80,9 @@ def join_game():
         return jsonify({"error": "Partie déjà complète."}), 400
 
     player_id = str(uuid.uuid4())
-    session["player_id"] = player_id
-    session["game_id"] = game_id
-
     game["players"][player_id] = "white"
+    game["last_updated"] = time.time()
     lobbies[game_id].append(player_id)
-
-    # Notify player 1 that opponent joined
-    broadcast(game_id, "player_joined", {"message": "Votre adversaire a rejoint la partie !"})
 
     return jsonify({"game_id": game_id, "player_id": player_id, "color": "white"})
 
@@ -132,20 +96,20 @@ def game_page(game_id):
 
 @app.route("/state/<game_id>")
 def get_state(game_id):
-    """Return current game state (used on page load)."""
+    """Polling endpoint — appelé toutes les 2s par chaque joueur."""
     player_id = request.args.get("player_id")
     if game_id not in games:
         return jsonify({"error": "Partie introuvable"}), 404
     game = games[game_id]
     my_color = game["players"].get(player_id)
-    opponent_count = len(game["players"])
     return jsonify({
         "board": game["board"],
         "current_turn": game["current_turn"],
         "winner": game["winner"],
         "my_color": my_color,
-        "opponent_joined": opponent_count >= 2,
+        "opponent_joined": len(game["players"]) >= 2,
         "moves": game["moves"],
+        "last_updated": game["last_updated"],
     })
 
 
@@ -164,20 +128,18 @@ def play_move():
 
     if game["winner"]:
         return jsonify({"error": "La partie est terminée"}), 400
-
     if player_id not in game["players"]:
         return jsonify({"error": "Vous n'êtes pas dans cette partie"}), 403
 
     my_color = game["players"][player_id]
     if game["current_turn"] != my_color:
         return jsonify({"error": "Ce n'est pas votre tour"}), 400
-
     if game["board"][row][col] is not None:
         return jsonify({"error": "Case déjà occupée"}), 400
 
-    # Play the move
     game["board"][row][col] = my_color
     game["moves"].append({"row": row, "col": col, "color": my_color})
+    game["last_updated"] = time.time()
 
     winner = None
     if check_win(game["board"], row, col, my_color):
@@ -186,39 +148,7 @@ def play_move():
     else:
         game["current_turn"] = "white" if my_color == "black" else "black"
 
-    broadcast(game_id, "move", {
-        "row": row,
-        "col": col,
-        "color": my_color,
-        "current_turn": game["current_turn"],
-        "winner": winner,
-    })
-
     return jsonify({"ok": True, "winner": winner})
-
-
-@app.route("/stream/<game_id>")
-def stream(game_id):
-    """SSE endpoint — keeps connection open and pushes events."""
-    player_id = request.args.get("player_id")
-    if not player_id or game_id not in games:
-        return Response("data: error\n\n", mimetype="text/event-stream")
-
-    q = get_client_queue(game_id, player_id)
-
-    def event_stream():
-        # Send a heartbeat immediately so the connection is confirmed
-        yield f"event: connected\ndata: {json.dumps({'ok': True})}\n\n"
-        while True:
-            try:
-                msg = q.get(timeout=25)
-                yield msg
-            except Exception:
-                # Heartbeat to keep connection alive
-                yield ": heartbeat\n\n"
-
-    return Response(event_stream(), mimetype="text/event-stream",
-                    headers={"X-Accel-Buffering": "no", "Cache-Control": "no-cache"})
 
 
 @app.route("/resign", methods=["POST"])
@@ -234,9 +164,9 @@ def resign():
         return jsonify({"error": "Joueur inconnu"}), 403
     winner = "white" if my_color == "black" else "black"
     game["winner"] = winner
-    broadcast(game_id, "resign", {"winner": winner, "resigned": my_color})
+    game["last_updated"] = time.time()
     return jsonify({"ok": True})
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     app.run(debug=True)

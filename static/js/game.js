@@ -1,24 +1,23 @@
 // ── Constants ────────────────────────────────────────────────────────────────
-const BOARD_SIZE  = 15;
-const COLS        = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O'];
+const BOARD_SIZE = 15;
+const COLS = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O'];
 
-// Board visual config (recalculated on resize)
 let CELL, MARGIN, canvas, ctx;
 
-// Game state (local mirror of server state)
 let state = {
   board: Array.from({ length: BOARD_SIZE }, () => Array(BOARD_SIZE).fill(null)),
   myColor: null,
   currentTurn: null,
   winner: null,
   opponentJoined: false,
+  lastUpdated: 0,
 };
 
 let gameId   = null;
 let playerId = null;
-let es       = null;   // EventSource
+let pollInterval = null;
 
-// ── Entry point ──────────────────────────────────────────────────────────────
+// ── Entry point ───────────────────────────────────────────────────────────────
 async function initGame(gid, pid) {
   gameId   = gid;
   playerId = pid;
@@ -27,17 +26,69 @@ async function initGame(gid, pid) {
   window.addEventListener("resize", () => { setupCanvas(); drawBoard(); });
 
   await fetchState();
-  connectSSE();
   renderSidebar();
   drawBoard();
+
+  // Démarre le polling toutes les 2 secondes
+  pollInterval = setInterval(poll, 2000);
 }
 
-// ── Canvas setup ─────────────────────────────────────────────────────────────
+// ── Polling ───────────────────────────────────────────────────────────────────
+async function poll() {
+  try {
+    const res  = await fetch(`/state/${gameId}?player_id=${playerId}`);
+    const data = await res.json();
+
+    // Ne redessine que si quelque chose a changé
+    if (data.last_updated !== state.lastUpdated) {
+      const wasOpponentJoined = state.opponentJoined;
+      applyState(data);
+      drawBoard();
+      renderSidebar();
+
+      if (!wasOpponentJoined && state.opponentJoined) {
+        setStatus("L'adversaire a rejoint !");
+        setTimeout(() => setStatus(turnStatus()), 1500);
+      }
+
+      if (state.winner) {
+        clearInterval(pollInterval);
+        showEndOverlay(state.winner);
+      }
+    }
+  } catch (e) {
+    // Silently ignore network errors, will retry
+  }
+}
+
+// ── Fetch initial state ───────────────────────────────────────────────────────
+async function fetchState() {
+  const res  = await fetch(`/state/${gameId}?player_id=${playerId}`);
+  const data = await res.json();
+  applyState(data);
+}
+
+function applyState(data) {
+  state.board          = data.board;
+  state.myColor        = data.my_color;
+  state.currentTurn    = data.current_turn;
+  state.winner         = data.winner;
+  state.opponentJoined = data.opponent_joined;
+  state.lastUpdated    = data.last_updated;
+
+  if (data.moves) {
+    const list = document.getElementById("moves-list");
+    list.innerHTML = "";
+    data.moves.forEach((m, i) => addMoveToList(m, i + 1));
+  }
+}
+
+// ── Canvas setup ──────────────────────────────────────────────────────────────
 function setupCanvas() {
   canvas = document.getElementById("board-canvas");
   ctx    = canvas.getContext("2d");
 
-  const area   = document.querySelector(".board-area");
+  const area    = document.querySelector(".board-area");
   const maxSide = Math.min(area.clientWidth - 32, area.clientHeight - 32, 700);
 
   MARGIN = Math.round(maxSide * 0.045);
@@ -53,69 +104,6 @@ function setupCanvas() {
   canvas.addEventListener("mousemove", onCanvasHover);
 }
 
-// ── Fetch state from server ──────────────────────────────────────────────────
-async function fetchState() {
-  const res  = await fetch(`/state/${gameId}?player_id=${playerId}`);
-  const data = await res.json();
-  applyState(data);
-}
-
-function applyState(data) {
-  state.board          = data.board;
-  state.myColor        = data.my_color;
-  state.currentTurn    = data.current_turn;
-  state.winner         = data.winner;
-  state.opponentJoined = data.opponent_joined;
-
-  // Rebuild moves list from board (or use data.moves if available)
-  if (data.moves) {
-    const list = document.getElementById("moves-list");
-    list.innerHTML = "";
-    data.moves.forEach((m, i) => addMoveToList(m, i + 1));
-  }
-}
-
-// ── SSE ──────────────────────────────────────────────────────────────────────
-function connectSSE() {
-  es = new EventSource(`/stream/${gameId}?player_id=${playerId}`);
-
-  es.addEventListener("connected", () => {
-    setStatus(state.opponentJoined ? "Partie en cours" : "En attente de l'adversaire…");
-  });
-
-  es.addEventListener("player_joined", () => {
-    state.opponentJoined = true;
-    setStatus("L'adversaire a rejoint !");
-    renderSidebar();
-    setTimeout(() => setStatus(turnStatus()), 1500);
-  });
-
-  es.addEventListener("move", e => {
-    const d = JSON.parse(e.data);
-    state.board[d.row][d.col] = d.color;
-    state.currentTurn = d.current_turn;
-    state.winner = d.winner;
-    addMoveToList({ row: d.row, col: d.col, color: d.color },
-                  document.getElementById("moves-list").children.length + 1);
-    drawBoard();
-    renderSidebar();
-    if (d.winner) showEndOverlay(d.winner);
-    hoverCell = null;
-  });
-
-  es.addEventListener("resign", e => {
-    const d = JSON.parse(e.data);
-    state.winner = d.winner;
-    renderSidebar();
-    showEndOverlay(d.winner, true);
-  });
-
-  es.onerror = () => {
-    // Reconnect silently after 3s
-    setTimeout(connectSSE, 3000);
-  };
-}
-
 // ── Canvas drawing ────────────────────────────────────────────────────────────
 let hoverCell = null;
 
@@ -123,11 +111,10 @@ function drawBoard() {
   if (!ctx) return;
   const size = canvas.width;
 
-  // Background – warm wood color
   ctx.fillStyle = "#c8854a";
   ctx.fillRect(0, 0, size, size);
 
-  // Wood grain (subtle lines)
+  // Wood grain
   ctx.strokeStyle = "rgba(140,80,30,0.18)";
   ctx.lineWidth = 1;
   for (let y = 0; y < size; y += 18) {
@@ -153,37 +140,29 @@ function drawBoard() {
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   for (let i = 0; i < BOARD_SIZE; i++) {
-    const x = MARGIN + i * CELL;
-    const y = MARGIN + i * CELL;
-    ctx.fillText(COLS[i], x, MARGIN - CELL * 0.55);
-    ctx.fillText(String(i + 1).padStart(2, ' '), MARGIN - CELL * 0.6, y);
+    ctx.fillText(COLS[i], MARGIN + i * CELL, MARGIN - CELL * 0.55);
+    ctx.fillText(String(i + 1).padStart(2, ' '), MARGIN - CELL * 0.6, MARGIN + i * CELL);
   }
 
-  // Star points (traditional gomoku dots)
+  // Star points
   const stars = [3, 7, 11];
-  for (const sr of stars) {
-    for (const sc of stars) {
-      ctx.fillStyle = "rgba(60,30,5,0.6)";
-      ctx.beginPath();
-      ctx.arc(MARGIN + sc * CELL, MARGIN + sr * CELL, CELL * 0.1, 0, Math.PI * 2);
-      ctx.fill();
-    }
+  for (const sr of stars) for (const sc of stars) {
+    ctx.fillStyle = "rgba(60,30,5,0.6)";
+    ctx.beginPath();
+    ctx.arc(MARGIN + sc * CELL, MARGIN + sr * CELL, CELL * 0.1, 0, Math.PI * 2);
+    ctx.fill();
   }
 
   // Hover ghost
   if (hoverCell && isMyTurn() && !state.winner) {
     const { r, c } = hoverCell;
-    if (state.board[r][c] === null) {
-      drawStone(r, c, state.myColor, 0.35);
-    }
+    if (state.board[r][c] === null) drawStone(r, c, state.myColor, 0.35);
   }
 
   // Stones
-  for (let r = 0; r < BOARD_SIZE; r++) {
-    for (let c = 0; c < BOARD_SIZE; c++) {
+  for (let r = 0; r < BOARD_SIZE; r++)
+    for (let c = 0; c < BOARD_SIZE; c++)
       if (state.board[r][c]) drawStone(r, c, state.board[r][c], 1);
-    }
-  }
 
   // Highlight last move
   const moves = document.getElementById("moves-list").children;
@@ -191,12 +170,10 @@ function drawBoard() {
     const last = moves[moves.length - 1];
     const rc = last.dataset;
     if (rc.row !== undefined) {
-      const x = MARGIN + Number(rc.col) * CELL;
-      const y = MARGIN + Number(rc.row) * CELL;
       ctx.strokeStyle = "rgba(192,57,43,0.85)";
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.arc(x, y, CELL * 0.19, 0, Math.PI * 2);
+      ctx.arc(MARGIN + Number(rc.col) * CELL, MARGIN + Number(rc.row) * CELL, CELL * 0.19, 0, Math.PI * 2);
       ctx.stroke();
     }
   }
@@ -209,14 +186,11 @@ function drawStone(row, col, color, alpha) {
 
   ctx.save();
   ctx.globalAlpha = alpha;
-
-  // Shadow
   ctx.shadowColor = "rgba(0,0,0,0.5)";
-  ctx.shadowBlur  = 6;
+  ctx.shadowBlur = 6;
   ctx.shadowOffsetX = 2;
   ctx.shadowOffsetY = 3;
 
-  // Stone body
   const grad = ctx.createRadialGradient(x - r * 0.3, y - r * 0.3, r * 0.05, x, y, r);
   if (color === "black") {
     grad.addColorStop(0, "#4a3820");
@@ -230,7 +204,6 @@ function drawStone(row, col, color, alpha) {
   ctx.arc(x, y, r, 0, Math.PI * 2);
   ctx.fill();
 
-  // Shine
   ctx.shadowColor = "transparent";
   const shine = ctx.createRadialGradient(x - r * 0.35, y - r * 0.35, 0, x - r * 0.1, y - r * 0.1, r * 0.55);
   shine.addColorStop(0, color === "black" ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.7)");
@@ -278,17 +251,14 @@ async function onCanvasClick(e) {
   const data = await res.json();
 
   if (!res.ok) {
-    // Revert optimistic update
     state.board[r][c] = null;
     drawBoard();
     setStatus("⚠ " + (data.error || "Erreur"));
     return;
   }
 
-  if (data.winner) {
-    state.winner = data.winner;
-    showEndOverlay(data.winner);
-  }
+  // Force un poll immédiat après avoir joué
+  await poll();
 }
 
 // ── Resign ────────────────────────────────────────────────────────────────────
@@ -301,6 +271,7 @@ document.addEventListener("DOMContentLoaded", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ game_id: gameId, player_id: playerId }),
     });
+    await poll();
   });
 });
 
@@ -311,7 +282,7 @@ function isMyTurn() {
 
 function turnStatus() {
   if (!state.opponentJoined) return "En attente de l'adversaire…";
-  if (state.winner) return `Partie terminée`;
+  if (state.winner) return "Partie terminée";
   if (isMyTurn()) return "🔴 À votre tour";
   return "⏳ Tour de l'adversaire";
 }
@@ -321,19 +292,18 @@ function setStatus(msg) {
 }
 
 function renderSidebar() {
-  // My color
-  const myStone = document.getElementById("my-stone");
+  const myStone  = document.getElementById("my-stone");
   const oppStone = document.getElementById("opp-stone");
-  const myLabel = document.getElementById("my-color-label");
+  const myLabel  = document.getElementById("my-color-label");
   const oppLabel = document.getElementById("opp-color-label");
 
   if (state.myColor === "white") {
     myStone.classList.add("white-stone");
-    myLabel.textContent = "Blanc";
+    myLabel.textContent  = "Blanc";
     oppLabel.textContent = "Noir";
   } else {
-    myLabel.textContent = "Noir";
     oppStone.classList.add("white-stone");
+    myLabel.textContent  = "Noir";
     oppLabel.textContent = "Blanc";
   }
 
@@ -353,12 +323,10 @@ function addMoveToList(move, n) {
 function showEndOverlay(winner, resigned = false) {
   const overlay = document.getElementById("overlay");
   const title   = document.getElementById("overlay-title");
-
   const winnerLabel = winner === state.myColor ? "Vous avez gagné 🎉" : "Votre adversaire a gagné";
   title.textContent = resigned
     ? (winner === state.myColor ? "L'adversaire a abandonné — Vous gagnez !" : "Vous avez abandonné")
     : winnerLabel;
-
   overlay.classList.remove("hidden");
   setStatus("Partie terminée");
 }
