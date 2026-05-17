@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gomoku — Profil</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <div class="profile-wrapper">
+
+    <!-- Top nav -->
+    <nav class="profile-nav">
+      <a href="/" class="nav-logo">
+        <span class="logo-kanji small">五目</span>
+        <span class="nav-title">GOMOKU</span>
+      </a>
+      <div class="nav-right">
+        <span class="nav-username">{{ user.username }}</span>
+        <button class="btn btn-ghost btn-sm" onclick="doLogout()">Déconnexion</button>
+      </div>
+    </nav>
+
+    <div class="profile-content">
+
+      <!-- Left: Friends -->
+      <aside class="profile-sidebar">
+        <section class="profile-section">
+          <h2>Amis</h2>
+
+          <!-- Search -->
+          <div class="search-row">
+            <input id="friend-search" type="text" class="code-input" placeholder="Chercher un pseudo…">
+            <div id="search-results" class="search-dropdown hidden"></div>
+          </div>
+
+          <!-- Pending requests received -->
+          {% if pending %}
+          <div class="pending-section">
+            <div class="section-label">Demandes reçues</div>
+            {% for p in pending %}
+            <div class="friend-row" id="pending-{{ p.friendship_id }}">
+              <span class="friend-name">{{ p.username }}</span>
+              <div class="friend-actions">
+                <button class="btn btn-primary btn-sm"
+                  onclick="acceptFriend('{{ p.friendship_id }}')">✓</button>
+                <button class="btn btn-danger btn-sm"
+                  onclick="removeFriend('{{ p.friendship_id }}')">✗</button>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+          {% endif %}
+
+          <!-- Friends list -->
+          <div class="section-label" style="margin-top:1rem">Mes amis</div>
+          {% if friends %}
+            {% for f in friends %}
+              {% if f.status == 'accepted' %}
+              <div class="friend-row" id="friend-{{ f.friendship_id }}">
+                <span class="friend-name">{{ f.username }}</span>
+                <button class="btn btn-ghost btn-sm"
+                  onclick="removeFriend('{{ f.friendship_id }}')">Retirer</button>
+              </div>
+              {% elif f.status == 'pending' and f.from_id == user.id %}
+              <div class="friend-row">
+                <span class="friend-name">{{ f.username }}</span>
+                <span class="badge-pending">En attente…</span>
+              </div>
+              {% endif %}
+            {% endfor %}
+          {% else %}
+            <p class="empty-msg">Pas encore d'amis. Cherche un pseudo ci-dessus !</p>
+          {% endif %}
+        </section>
+      </aside>
+
+      <!-- Right: History -->
+      <main class="profile-main">
+        <section class="profile-section">
+          <h2>Historique des parties</h2>
+          {% if history %}
+          <table class="history-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Adversaire</th>
+                <th>Résultat</th>
+                <th>Coups</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for g in history %}
+              <tr>
+                <td class="mono">{{ g.played_at | int | format_date }}</td>
+                <td>
+                  {% if g.player1_id == user.id %}{{ g.p2_name }}
+                  {% else %}{{ g.p1_name }}{% endif %}
+                </td>
+                <td>
+                  {% if g.winner_id == user.id %}
+                    <span class="badge-win">Victoire</span>
+                  {% elif g.winner_id %}
+                    <span class="badge-loss">Défaite</span>
+                  {% else %}
+                    <span class="badge-pending">–</span>
+                  {% endif %}
+                </td>
+                <td class="mono">{{ g.moves_json | count_moves }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}
+            <p class="empty-msg">Aucune partie jouée pour l'instant.</p>
+          {% endif %}
+        </section>
+      </main>
+
+    </div>
+  </div>
+
+  <script>
+    // ── Logout ────────────────────────────────────────────────────────────────
+    async function doLogout() {
+      await fetch("/logout", { method: "POST" });
+      window.location.href = "/login";
+    }
+
+    // ── Friend search ─────────────────────────────────────────────────────────
+    let searchTimeout = null;
+    const searchInput = document.getElementById("friend-search");
+    const searchResults = document.getElementById("search-results");
+
+    searchInput.addEventListener("input", () => {
+      clearTimeout(searchTimeout);
+      const q = searchInput.value.trim();
+      if (q.length < 2) { searchResults.classList.add("hidden"); return; }
+      searchTimeout = setTimeout(async () => {
+        const res  = await fetch(`/friends/search?q=${encodeURIComponent(q)}`);
+        const data = await res.json();
+        if (!data.length) { searchResults.classList.add("hidden"); return; }
+        searchResults.innerHTML = data.map(u =>
+          `<div class="search-item" onclick="addFriend('${u.id}', '${u.username}')">
+            ${u.username}
+          </div>`
+        ).join("");
+        searchResults.classList.remove("hidden");
+      }, 300);
+    });
+
+    document.addEventListener("click", e => {
+      if (!searchResults.contains(e.target) && e.target !== searchInput) {
+        searchResults.classList.add("hidden");
+      }
+    });
+
+    async function addFriend(userId, username) {
+      searchResults.classList.add("hidden");
+      searchInput.value = "";
+      const res  = await fetch("/friends/add", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: userId }),
+      });
+      const data = await res.json();
+      if (!res.ok) { alert(data.error); return; }
+      alert(`Demande envoyée à ${username} !`);
+    }
+
+    async function acceptFriend(fid) {
+      await fetch("/friends/accept", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ friendship_id: fid }),
+      });
+      document.getElementById(`pending-${fid}`)?.remove();
+      location.reload();
+    }
+
+    async function removeFriend(fid) {
+      if (!confirm("Confirmer ?")) return;
+      await fetch("/friends/remove", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ friendship_id: fid }),
+      });
+      document.getElementById(`friend-${fid}`)?.remove();
+      location.reload();
+    }
+  </script>
+</body>
+</html>

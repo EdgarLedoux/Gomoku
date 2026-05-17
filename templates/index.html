@@ -9,14 +9,30 @@
   <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
+
+  <!-- Invitation banner (hidden by default) -->
+  <div id="invite-banner" class="invite-banner hidden">
+    <span id="invite-text"></span>
+    <div class="invite-actions">
+      <button class="btn btn-primary btn-sm" onclick="respondInvite(true)">Accepter</button>
+      <button class="btn btn-ghost btn-sm" onclick="respondInvite(false)">Refuser</button>
+    </div>
+  </div>
+
   <div class="home-wrapper">
     <header class="home-header">
       <div class="logo-kanji">五目並べ</div>
       <h1>GOMOKU</h1>
       <p class="subtitle">Paris × Ulaanbaatar</p>
+      <div class="header-nav">
+        <span class="nav-username">{{ username }}</span>
+        <a href="/profile" class="btn btn-ghost btn-sm">Mon profil</a>
+        <button class="btn btn-ghost btn-sm" onclick="doLogout()">Déconnexion</button>
+      </div>
     </header>
 
     <div class="home-cards">
+
       <!-- Create game -->
       <div class="card">
         <div class="card-number">01</div>
@@ -37,18 +53,38 @@
         <h2>Rejoindre une partie</h2>
         <p>Entre le code reçu par ton ami.</p>
         <div class="input-row">
-          <input id="join-code" type="text" maxlength="8" placeholder="ex : A1B2C3D4" class="code-input" autocomplete="off">
+          <input id="join-code" type="text" maxlength="8" placeholder="ex : A1B2C3D4"
+                 class="code-input" autocomplete="off">
           <button id="btn-join" class="btn btn-primary">Rejoindre →</button>
         </div>
         <div id="join-error" class="error-msg hidden"></div>
       </div>
+
+      <!-- Invite a friend -->
+      <div class="card" id="card-invite">
+        <div class="card-number">03</div>
+        <h2>Inviter un ami</h2>
+        <p>Envoie une invitation directe à un de tes amis.</p>
+        <div id="friends-list-invite">
+          <div class="loading-msg">Chargement des amis…</div>
+        </div>
+      </div>
+
     </div>
   </div>
 
   <script>
-    let myPlayerId = null;
-    let myGameId   = null;
-    let pollInterval = null;
+    let myPlayerId    = null;
+    let myGameId      = null;
+    let pollInterval  = null;
+    let invPollInterval = null;
+    let pendingInvId  = null;
+
+    // ── Logout ────────────────────────────────────────────────────────────────
+    async function doLogout() {
+      await fetch("/logout", { method: "POST" });
+      window.location.href = "/login";
+    }
 
     // ── Create ────────────────────────────────────────────────────────────────
     document.getElementById("btn-create").addEventListener("click", async () => {
@@ -61,18 +97,16 @@
       document.getElementById("create-result").classList.remove("hidden");
       document.getElementById("btn-create").disabled = true;
 
-      // Polling pour détecter quand l'adversaire rejoint
       pollInterval = setInterval(async () => {
-        const res2 = await fetch(`/state/${myGameId}?player_id=${myPlayerId}`);
-        const state = await res2.json();
-        if (state.opponent_joined) {
+        const r2   = await fetch(`/state/${myGameId}?player_id=${myPlayerId}`);
+        const st   = await r2.json();
+        if (st.opponent_joined) {
           clearInterval(pollInterval);
           window.location.href = `/game/${myGameId}?player_id=${myPlayerId}`;
         }
       }, 2000);
     });
 
-    // ── Copy code ─────────────────────────────────────────────────────────────
     document.getElementById("btn-copy").addEventListener("click", () => {
       navigator.clipboard.writeText(document.getElementById("game-code").textContent);
       document.getElementById("btn-copy").textContent = "Copié ✓";
@@ -90,22 +124,108 @@
         body: JSON.stringify({ game_id: code }),
       });
       const data = await res.json();
-
-      if (!res.ok) {
-        errEl.textContent = data.error || "Erreur inconnue";
-        errEl.classList.remove("hidden");
-        return;
-      }
-
-      myPlayerId = data.player_id;
-      myGameId   = data.game_id;
-      window.location.href = `/game/${myGameId}?player_id=${myPlayerId}`;
+      if (!res.ok) { errEl.textContent = data.error; errEl.classList.remove("hidden"); return; }
+      window.location.href = `/game/${data.game_id}?player_id=${data.player_id}`;
     });
 
-    // Allow Enter key in join input
     document.getElementById("join-code").addEventListener("keydown", e => {
       if (e.key === "Enter") document.getElementById("btn-join").click();
     });
+
+    // ── Friends invite card ───────────────────────────────────────────────────
+    async function loadFriends() {
+      const res     = await fetch("/friends/list");
+      const friends = await res.json();
+      const el      = document.getElementById("friends-list-invite");
+
+      if (!friends.length) {
+        el.innerHTML = '<p class="empty-msg">Aucun ami pour l\'instant.<br><a href="/profile">Ajouter des amis →</a></p>';
+        return;
+      }
+
+      el.innerHTML = friends.map(f =>
+        `<div class="friend-row">
+          <span class="friend-name">${f.username}</span>
+          <button class="btn btn-primary btn-sm" onclick="inviteFriend('${f.id}', '${f.username}')">
+            Inviter
+          </button>
+        </div>`
+      ).join("");
+    }
+
+    async function inviteFriend(userId, username) {
+      const res  = await fetch("/invite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: userId }),
+      });
+      const data = await res.json();
+      if (!res.ok) { alert(data.error); return; }
+
+      myPlayerId = data.player_id;
+      myGameId   = data.game_id;
+
+      // Update card 03 to show waiting
+      document.getElementById("friends-list-invite").innerHTML =
+        `<div class="code-display">
+          <span class="label">Invitation envoyée à ${username}</span>
+          <span class="code">${data.game_id}</span>
+          <div class="waiting-msg">⏳ En attente de la réponse…</div>
+        </div>`;
+
+      // Also update card 01 display
+      document.getElementById("game-code").textContent = data.game_id;
+      document.getElementById("create-result").classList.remove("hidden");
+      document.getElementById("btn-create").disabled = true;
+
+      pollInterval = setInterval(async () => {
+        const r2 = await fetch(`/state/${myGameId}?player_id=${myPlayerId}`);
+        const st = await r2.json();
+        if (st.opponent_joined) {
+          clearInterval(pollInterval);
+          window.location.href = `/game/${myGameId}?player_id=${myPlayerId}`;
+        }
+      }, 2000);
+    }
+
+    // ── Invitation banner polling ─────────────────────────────────────────────
+    async function pollInvitations() {
+      try {
+        const res  = await fetch("/invitations/pending");
+        const data = await res.json();
+        if (data.length > 0) {
+          const inv = data[0];
+          pendingInvId = inv.id;
+          document.getElementById("invite-text").textContent =
+            `🎮 ${inv.from_username} vous invite à jouer !`;
+          document.getElementById("invite-banner").classList.remove("hidden");
+        } else {
+          document.getElementById("invite-banner").classList.add("hidden");
+          pendingInvId = null;
+        }
+      } catch(e) {}
+    }
+
+    async function respondInvite(accept) {
+      if (!pendingInvId) return;
+      const res  = await fetch("/invitations/respond", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ invitation_id: pendingInvId, accept }),
+      });
+      const data = await res.json();
+      document.getElementById("invite-banner").classList.add("hidden");
+
+      if (accept && res.ok) {
+        clearInterval(invPollInterval);
+        window.location.href = `/game/${data.game_id}?player_id=${data.player_id}`;
+      }
+    }
+
+    // ── Init ──────────────────────────────────────────────────────────────────
+    loadFriends();
+    pollInvitations();
+    invPollInterval = setInterval(pollInvitations, 3000);
   </script>
 </body>
 </html>

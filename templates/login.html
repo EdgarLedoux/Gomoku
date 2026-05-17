@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gomoku — Connexion</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <div class="auth-wrapper">
+    <div class="auth-header">
+      <div class="logo-kanji">五目並べ</div>
+      <h1>GOMOKU</h1>
+      <p class="subtitle">Paris × Ulaanbaatar</p>
+    </div>
+
+    <div class="auth-card">
+      <!-- Tabs -->
+      <div class="auth-tabs">
+        <button class="auth-tab active" id="tab-login" onclick="showTab('login')">Connexion</button>
+        <button class="auth-tab" id="tab-register" onclick="showTab('register')">Inscription</button>
+      </div>
+
+      <!-- Login form -->
+      <div id="form-login" class="auth-form">
+        <div class="field">
+          <label>Pseudo</label>
+          <input id="login-username" type="text" class="code-input" placeholder="ton_pseudo" autocomplete="username">
+        </div>
+        <div class="field">
+          <label>Mot de passe</label>
+          <input id="login-password" type="password" class="code-input" placeholder="••••••" autocomplete="current-password">
+        </div>
+        <div id="login-error" class="error-msg hidden"></div>
+        <button class="btn btn-primary" onclick="doLogin()">Se connecter →</button>
+      </div>
+
+      <!-- Register form -->
+      <div id="form-register" class="auth-form hidden">
+        <div class="field">
+          <label>Pseudo (min. 3 caractères)</label>
+          <input id="reg-username" type="text" class="code-input" placeholder="ton_pseudo" autocomplete="username">
+        </div>
+        <div class="field">
+          <label>Mot de passe (min. 6 caractères)</label>
+          <input id="reg-password" type="password" class="code-input" placeholder="••••••" autocomplete="new-password">
+        </div>
+        <div id="register-error" class="error-msg hidden"></div>
+        <button class="btn btn-primary" onclick="doRegister()">Créer mon compte →</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function showTab(tab) {
+      document.getElementById("form-login").classList.toggle("hidden", tab !== "login");
+      document.getElementById("form-register").classList.toggle("hidden", tab !== "register");
+      document.getElementById("tab-login").classList.toggle("active", tab === "login");
+      document.getElementById("tab-register").classList.toggle("active", tab === "register");
+    }
+
+    async function doLogin() {
+      const username = document.getElementById("login-username").value.trim();
+      const password = document.getElementById("login-password").value;
+      const errEl    = document.getElementById("login-error");
+      errEl.classList.add("hidden");
+
+      const res  = await fetch("/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "login", username, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) { errEl.textContent = data.error; errEl.classList.remove("hidden"); return; }
+      window.location.href = "/";
+    }
+
+    async function doRegister() {
+      const username = document.getElementById("reg-username").value.trim();
+      const password = document.getElementById("reg-password").value;
+      const errEl    = document.getElementById("register-error");
+      errEl.classList.add("hidden");
+
+      const res  = await fetch("/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "register", username, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) { errEl.textContent = data.error; errEl.classList.remove("hidden"); return; }
+      window.location.href = "/";
+    }
+
+    // Enter key support
+    document.addEventListener("keydown", e => {
+      if (e.key !== "Enter") return;
+      const loginVisible = !document.getElementById("form-login").classList.contains("hidden");
+      if (loginVisible) doLogin(); else doRegister();
+    });
+  </script>
+</body>
+</html>

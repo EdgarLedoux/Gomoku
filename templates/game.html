@@ -11,7 +11,6 @@
 <body>
   <div class="game-layout">
 
-    <!-- Sidebar -->
     <aside class="sidebar">
       <div class="logo-kanji small">五目</div>
       <h1 class="game-title">GOMOKU</h1>
@@ -21,15 +20,15 @@
         <div class="stone-icon" id="my-stone"></div>
         <div>
           <div class="player-label">Vous</div>
-          <div id="my-color-label" class="mono">–</div>
+          <div id="my-name-label" class="mono">–</div>
         </div>
       </div>
 
       <div class="player-info" id="opp-info">
-        <div class="stone-icon opp" id="opp-stone"></div>
+        <div class="stone-icon" id="opp-stone"></div>
         <div>
           <div class="player-label">Adversaire</div>
-          <div id="opp-color-label" class="mono">–</div>
+          <div id="opp-name-label" class="mono">–</div>
         </div>
       </div>
 
@@ -43,13 +42,16 @@
       <button id="btn-resign" class="btn btn-danger" style="margin-top:auto">Abandonner</button>
     </aside>
 
-    <!-- Board area -->
     <main class="board-area">
       <canvas id="board-canvas"></canvas>
       <div id="overlay" class="overlay hidden">
         <div class="overlay-content">
           <div id="overlay-title"></div>
-          <button onclick="window.location.href='/'">← Retour à l'accueil</button>
+          <div class="overlay-buttons">
+            <button id="btn-rematch" class="btn btn-primary">Rejouer ↺</button>
+            <button class="btn btn-ghost" onclick="window.location.href='/'">← Accueil</button>
+          </div>
+          <div id="rematch-status" class="waiting-msg hidden">⏳ En attente de l'adversaire…</div>
         </div>
       </div>
     </main>
@@ -58,8 +60,7 @@
 
   <script src="/static/js/game.js"></script>
   <script>
-    // Pass server-side data to JS
-    const GAME_ID = "{{ game_id }}";
+    const GAME_ID  = "{{ game_id }}";
     const PLAYER_ID = new URLSearchParams(window.location.search).get("player_id");
     initGame(GAME_ID, PLAYER_ID);
   </script>
