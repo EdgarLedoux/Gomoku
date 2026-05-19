@@ -589,3 +589,26 @@ body {
   .home-cards { flex-direction: column; align-items: center; }
   .card { width: 100%; max-width: 400px; }
 }
+
+
+/* ── Lang Switcher (Bouton Drapeau) ──────────────────────────────────────── */
+
+/* Cibler le bouton à l'intérieur du div .lang-switcher */
+.lang-switcher .btn-ghost {
+  /* On écrase le padding par défaut pour le rendre carré/adapté à l'émoji */
+  padding: 0.3rem 0.6rem;
+  font-size: 1.4rem; /* Émoji plus grand */
+  line-height: 1;    /* Évite que le bouton soit trop haut */
+  border-radius: 50px; /* Optionnel : bords plus arrondis pour un aspect 'pastille' */
+  border-color: rgba(200,133,74,0.4); /* Bordure légèrement plus discrète */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Effet au survol spécifique pour ce bouton */
+.lang-switcher .btn-ghost:hover {
+  background: rgba(200,133,74,0.1);
+  border-color: var(--wood);
+  transform: scale(1.05); /* Petit effet de grossissement */
+}

@@ -10,49 +10,52 @@
 </head>
 <body>
   <div class="auth-wrapper">
-    <div class="auth-header">
+    <div class="auth-header" style="position: relative;">
+      
+      <div class="lang-switcher" style="position: absolute; top: 0; right: 0;">
+        <button id="lang-toggle-btn" class="btn btn-ghost" onclick="toggleLang()" style="font-size: 1.5rem; padding: 0.2rem 0.5rem; border-color: rgba(200,133,74,0.3);"></button>
+      </div>
+
       <div class="logo-kanji">五目並べ</div>
       <h1>GOMOKU</h1>
       <p class="subtitle">Paris × Ulaanbaatar</p>
     </div>
 
     <div class="auth-card">
-      <!-- Tabs -->
       <div class="auth-tabs">
-        <button class="auth-tab active" id="tab-login" onclick="showTab('login')">Connexion</button>
-        <button class="auth-tab" id="tab-register" onclick="showTab('register')">Inscription</button>
+        <button class="auth-tab active" id="tab-login" onclick="showTab('login')" data-i18n="login_tab">Connexion</button>
+        <button class="auth-tab" id="tab-register" onclick="showTab('register')" data-i18n="register_tab">Inscription</button>
       </div>
 
-      <!-- Login form -->
       <div id="form-login" class="auth-form">
         <div class="field">
-          <label>Pseudo</label>
-          <input id="login-username" type="text" class="code-input" placeholder="ton_pseudo" autocomplete="username">
+          <label data-i18n="username_label">Pseudo</label>
+          <input id="login-username" type="text" class="code-input" data-i18n-placeholder="username_hint" placeholder="ton_pseudo" autocomplete="username">
         </div>
         <div class="field">
-          <label>Mot de passe</label>
+          <label data-i18n="password_label">Mot de passe</label>
           <input id="login-password" type="password" class="code-input" placeholder="••••••" autocomplete="current-password">
         </div>
         <div id="login-error" class="error-msg hidden"></div>
-        <button class="btn btn-primary" onclick="doLogin()">Se connecter →</button>
+        <button class="btn btn-primary" onclick="doLogin()" data-i18n="login_btn">Se connecter →</button>
       </div>
 
-      <!-- Register form -->
       <div id="form-register" class="auth-form hidden">
         <div class="field">
-          <label>Pseudo (min. 3 caractères)</label>
-          <input id="reg-username" type="text" class="code-input" placeholder="ton_pseudo" autocomplete="username">
+          <label data-i18n="username_reg_label">Pseudo (min. 3 caractères)</label>
+          <input id="reg-username" type="text" class="code-input" data-i18n-placeholder="username_hint" placeholder="ton_pseudo" autocomplete="username">
         </div>
         <div class="field">
-          <label>Mot de passe (min. 6 caractères)</label>
+          <label data-i18n="password_reg_label">Mot de passe (min. 6 caractères)</label>
           <input id="reg-password" type="password" class="code-input" placeholder="••••••" autocomplete="new-password">
         </div>
         <div id="register-error" class="error-msg hidden"></div>
-        <button class="btn btn-primary" onclick="doRegister()">Créer mon compte →</button>
+        <button class="btn btn-primary" onclick="doRegister()" data-i18n="register_btn">Créer mon compte →</button>
       </div>
     </div>
   </div>
 
+  <script src="/static/js/i18n.js"></script>
   <script>
     function showTab(tab) {
       document.getElementById("form-login").classList.toggle("hidden", tab !== "login");

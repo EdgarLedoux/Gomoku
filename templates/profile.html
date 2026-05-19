@@ -11,35 +11,35 @@
 <body>
   <div class="profile-wrapper">
 
-    <!-- Top nav -->
     <nav class="profile-nav">
       <a href="/" class="nav-logo">
         <span class="logo-kanji small">五目</span>
         <span class="nav-title">GOMOKU</span>
       </a>
       <div class="nav-right">
+        <div class="lang-switcher">
+          <button id="lang-toggle-btn" class="btn btn-ghost" onclick="toggleLang()" style="font-size: 1.5rem; padding: 0.2rem 0.5rem; border-color: rgba(200,133,74,0.3);"></button>
+        </div>
+        
         <span class="nav-username">{{ user.username }}</span>
-        <button class="btn btn-ghost btn-sm" onclick="doLogout()">Déconnexion</button>
+        <button class="btn btn-ghost btn-sm" onclick="doLogout()" data-i18n="logout">Déconnexion</button>
       </div>
     </nav>
 
     <div class="profile-content">
 
-      <!-- Left: Friends -->
       <aside class="profile-sidebar">
         <section class="profile-section">
-          <h2>Amis</h2>
+          <h2 data-i18n="friends_title">Amis</h2>
 
-          <!-- Search -->
           <div class="search-row">
-            <input id="friend-search" type="text" class="code-input" placeholder="Chercher un pseudo…">
+            <input id="friend-search" type="text" class="code-input" data-i18n-placeholder="search_placeholder" placeholder="Chercher un pseudo…">
             <div id="search-results" class="search-dropdown hidden"></div>
           </div>
 
-          <!-- Pending requests received -->
           {% if pending %}
           <div class="pending-section">
-            <div class="section-label">Demandes reçues</div>
+            <div class="section-label" data-i18n="pending_requests">Demandes reçues</div>
             {% for p in pending %}
             <div class="friend-row" id="pending-{{ p.friendship_id }}">
               <span class="friend-name">{{ p.username }}</span>
@@ -54,41 +54,39 @@
           </div>
           {% endif %}
 
-          <!-- Friends list -->
-          <div class="section-label" style="margin-top:1rem">Mes amis</div>
+          <div class="section-label" style="margin-top:1rem" data-i18n="my_friends">Mes amis</div>
           {% if friends %}
             {% for f in friends %}
               {% if f.status == 'accepted' %}
               <div class="friend-row" id="friend-{{ f.friendship_id }}">
                 <span class="friend-name">{{ f.username }}</span>
                 <button class="btn btn-ghost btn-sm"
-                  onclick="removeFriend('{{ f.friendship_id }}')">Retirer</button>
+                  onclick="removeFriend('{{ f.friendship_id }}')" data-i18n="remove_friend">Retirer</button>
               </div>
               {% elif f.status == 'pending' and f.from_id == user.id %}
               <div class="friend-row">
                 <span class="friend-name">{{ f.username }}</span>
-                <span class="badge-pending">En attente…</span>
+                <span class="badge-pending" data-i18n="pending_badge">En attente…</span>
               </div>
               {% endif %}
             {% endfor %}
           {% else %}
-            <p class="empty-msg">Pas encore d'amis. Cherche un pseudo ci-dessus !</p>
+            <p class="empty-msg" data-i18n="no_friends_yet">Pas encore d'amis. Cherche un pseudo ci-dessus !</p>
           {% endif %}
         </section>
       </aside>
 
-      <!-- Right: History -->
       <main class="profile-main">
         <section class="profile-section">
-          <h2>Historique des parties</h2>
+          <h2 data-i18n="history_title">Historique des parties</h2>
           {% if history %}
           <table class="history-table">
             <thead>
               <tr>
-                <th>Date</th>
-                <th>Adversaire</th>
-                <th>Résultat</th>
-                <th>Coups</th>
+                <th data-i18n="col_date">Date</th>
+                <th data-i18n="col_opponent">Adversaire</th>
+                <th data-i18n="col_result">Résultat</th>
+                <th data-i18n="col_moves">Coups</th>
               </tr>
             </thead>
             <tbody>
@@ -101,9 +99,9 @@
                 </td>
                 <td>
                   {% if g.winner_id == user.id %}
-                    <span class="badge-win">Victoire</span>
+                    <span class="badge-win" data-i18n="win_badge">Victoire</span>
                   {% elif g.winner_id %}
-                    <span class="badge-loss">Défaite</span>
+                    <span class="badge-loss" data-i18n="loss_badge">Défaite</span>
                   {% else %}
                     <span class="badge-pending">–</span>
                   {% endif %}
@@ -114,7 +112,7 @@
             </tbody>
           </table>
           {% else %}
-            <p class="empty-msg">Aucune partie jouée pour l'instant.</p>
+            <p class="empty-msg" data-i18n="no_history">Aucune partie jouée pour l'instant.</p>
           {% endif %}
         </section>
       </main>
@@ -122,6 +120,7 @@
     </div>
   </div>
 
+  <script src="/static/js/i18n.js"></script>
   <script>
     // ── Logout ────────────────────────────────────────────────────────────────
     async function doLogout() {

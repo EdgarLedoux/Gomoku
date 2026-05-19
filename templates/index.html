@@ -10,12 +10,11 @@
 </head>
 <body>
 
-  <!-- Invitation banner (hidden by default) -->
   <div id="invite-banner" class="invite-banner hidden">
     <span id="invite-text"></span>
     <div class="invite-actions">
-      <button class="btn btn-primary btn-sm" onclick="respondInvite(true)">Accepter</button>
-      <button class="btn btn-ghost btn-sm" onclick="respondInvite(false)">Refuser</button>
+      <button class="btn btn-primary btn-sm" data-i18n="accept" onclick="respondInvite(true)">Accepter</button>
+      <button class="btn btn-ghost btn-sm"   data-i18n="refuse" onclick="respondInvite(false)">Refuser</button>
     </div>
   </div>
 
@@ -25,53 +24,56 @@
       <h1>GOMOKU</h1>
       <p class="subtitle">Paris × Ulaanbaatar</p>
       <div class="header-nav">
+        <div class="lang-switcher">
+          <button id="lang-toggle-btn" class="btn btn-ghost" onclick="toggleLang()" style="font-size: 1.5rem; padding: 0.2rem 0.5rem;"></button>
+        </div>
         <span class="nav-username">{{ username }}</span>
-        <a href="/profile" class="btn btn-ghost btn-sm">Mon profil</a>
-        <button class="btn btn-ghost btn-sm" onclick="doLogout()">Déconnexion</button>
+        <a href="/profile" class="btn btn-ghost btn-sm" data-i18n="my_profile">Mon profil</a>
+        <button class="btn btn-ghost btn-sm" data-i18n="logout" onclick="doLogout()">Déconnexion</button>
       </div>
     </header>
 
     <div class="home-cards">
 
-      <!-- Create game -->
       <div class="card">
         <div class="card-number">01</div>
-        <h2>Créer une partie</h2>
-        <p>Génère un code à partager avec ton adversaire.</p>
-        <button id="btn-create" class="btn btn-primary">Nouvelle partie →</button>
+        <h2 data-i18n="create_title">Créer une partie</h2>
+        <p data-i18n="create_desc">Génère un code à partager avec ton adversaire.</p>
+        <button id="btn-create" class="btn btn-primary" data-i18n="create_btn">Nouvelle partie →</button>
         <div id="create-result" class="code-display hidden">
-          <span class="label">Code à partager</span>
+          <span class="label" data-i18n="code_label">Code à partager</span>
           <span id="game-code" class="code"></span>
-          <button id="btn-copy" class="btn btn-ghost">Copier</button>
-          <div class="waiting-msg">⏳ En attente de l'adversaire…</div>
+          <button id="btn-copy" class="btn btn-ghost" data-i18n="copy_btn">Copier</button>
+          <div class="waiting-msg" data-i18n="waiting_opp">⏳ En attente de l'adversaire…</div>
         </div>
       </div>
 
-      <!-- Join game -->
       <div class="card">
         <div class="card-number">02</div>
-        <h2>Rejoindre une partie</h2>
-        <p>Entre le code reçu par ton ami.</p>
+        <h2 data-i18n="join_title">Rejoindre une partie</h2>
+        <p data-i18n="join_desc">Entre le code reçu par ton ami.</p>
         <div class="input-row">
-          <input id="join-code" type="text" maxlength="8" placeholder="ex : A1B2C3D4"
-                 class="code-input" autocomplete="off">
-          <button id="btn-join" class="btn btn-primary">Rejoindre →</button>
+          <input id="join-code" type="text" maxlength="8"
+                 class="code-input" autocomplete="off"
+                 data-i18n-placeholder="join_placeholder">
+          <button id="btn-join" class="btn btn-primary" data-i18n="join_btn">Rejoindre →</button>
         </div>
         <div id="join-error" class="error-msg hidden"></div>
       </div>
 
-      <!-- Invite a friend -->
-      <div class="card" id="card-invite">
+      <div class="card">
         <div class="card-number">03</div>
-        <h2>Inviter un ami</h2>
-        <p>Envoie une invitation directe à un de tes amis.</p>
+        <h2 data-i18n="invite_title">Inviter un ami</h2>
+        <p data-i18n="invite_desc">Envoie une invitation directe à un de tes amis.</p>
         <div id="friends-list-invite">
-          <div class="loading-msg">Chargement des amis…</div>
+          <div class="loading-msg" data-i18n="loading_friends">Chargement des amis…</div>
         </div>
       </div>
 
     </div>
   </div>
+
+  <script src="/static/js/i18n.js"></script>
 
   <script>
     let myPlayerId    = null;

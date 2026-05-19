@@ -35,7 +35,7 @@ async function initGame(gid, pid) {
   // Resign button
   const btn = document.getElementById("btn-resign");
   if (btn) btn.addEventListener("click", async () => {
-    if (!confirm("Abandonner la partie ?")) return;
+    if (!confirm(t("resign_btn"))) return;
     await fetch("/resign", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -62,7 +62,7 @@ async function poll() {
       renderSidebar();
 
       if (!wasOpponentJoined && state.opponentJoined) {
-        setStatus("L'adversaire a rejoint !");
+        setStatus(t("opponent_joined"));
         setTimeout(() => setStatus(turnStatus()), 1500);
       }
       if (state.winner) {
@@ -279,10 +279,10 @@ function isMyTurn() {
 }
 
 function turnStatus() {
-  if (!state.opponentJoined) return "En attente de l'adversaire…";
-  if (state.winner)          return "Partie terminée";
-  if (isMyTurn())            return "🔴 À votre tour";
-  return "⏳ Tour de l'adversaire";
+  if (!state.opponentJoined) return t("status_waiting");
+  if (state.winner)          return t("status_finished");
+  if (isMyTurn())            return t("status_my_turn");
+  return t("status_opp_turn");
 }
 
 function setStatus(msg) {
@@ -327,10 +327,12 @@ function addMoveToList(move, n) {
 function showEndOverlay(winner, resigned = false) {
   const overlay = document.getElementById("overlay");
   const title   = document.getElementById("overlay-title");
-  const winnerLabel = winner === state.myColor ? "Vous avez gagné 🎉" : "Votre adversaire a gagné";
+  const winnerLabel = winner === state.myColor ? t("you_won") : t("opp_won");
   title.textContent = resigned
-    ? (winner === state.myColor ? "L'adversaire a abandonné !" : "Vous avez abandonné")
+    ? (winner === state.myColor ? t("opp_resigned") : t("you_resigned"))
     : winnerLabel;
   overlay.classList.remove("hidden");
   setStatus("Partie terminée");
 }
+
+// Vous avez gagné 🎉" : "Votre adversaire a gagné
