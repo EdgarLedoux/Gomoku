@@ -434,9 +434,24 @@ def join_game():
         return jsonify({"error": "Partie introuvable."}), 404
 
     game = games[game_id]
+
+    # Si déconnection d'un joueur
+    if "user_ids" in game:
+        for pid, uid in game["user_ids"].items():
+            if uid == user["id"]:
+                color = game["players"].get(pid, "white")
+                
+                return jsonify({"game_id": game_id, 
+                                "player_id": pid, 
+                                "color": color,
+                                "status": "reconnected"
+                                })
+            
+    # Si la partie est complète sans le joueur
     if len(game["players"]) >= 2:
         return jsonify({"error": "Partie déjà complète."}), 400
 
+    # Sinon, il n'y a qu'un joueur en attente de la partie -> on ajoute le joueur
     player_id = str(uuid.uuid4())
     game["players"][player_id] = "white"
     game["last_updated"] = time.time()
