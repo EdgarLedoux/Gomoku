@@ -20,12 +20,14 @@ function resetIdleTimer() {
   // 3. On lance un nouveau compte à rebours de 10 secondes (10 000 ms)
   idleTimer = setTimeout(() => {
     // Choisir un son au hasard dans la liste
-    const randomIndex = Math.floor(Math.random() * tauntSounds.length);
-    const randomSound = tauntSounds[randomIndex];
-    
-    // Jouer le son
-    randomSound.play().catch(err => console.log("Audio bloqué", err));
-
+    if (isMyTurn()) {
+      const randomIndex = Math.floor(Math.random() * tauntSounds.length);
+      const randomSound = tauntSounds[randomIndex];
+      
+      // On remet le son à zéro au cas où il était déjà en train de jouer
+      randomSound.currentTime = 0;
+      randomSound.play().catch(err => console.log("Audio bloqué", err));
+    }
     // Optionnel : On relance le minuteur pour recommencer dans 10s si ça ne joue toujours pas !
     resetIdleTimer();
   }, 10000);
