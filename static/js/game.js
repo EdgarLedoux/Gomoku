@@ -6,6 +6,8 @@ const soundRB2 = new Audio('/static/sounds/Hurry up.mp3');
 const soundRB3 = new Audio('/static/sounds/Play u dummy.mp3');
 const soundRB4 = new Audio('/static/sounds/The best u could do.mp3');
 const soundRB5 = new Audio('/static/sounds/What are u waiting for idiot.mp3');
+const soundLose = new Audio('/static/sounds/Awww so cute.mp3');
+
 
 const tauntSounds = [soundRB1, soundRB2, soundRB3, soundRB4, soundRB5];
 let idleTimer = null;
@@ -102,7 +104,13 @@ async function poll() {
       }
       if (state.winner) {
         clearInterval(pollInterval);
+        
+        clearTimeout(idleTimer);
+
         showEndOverlay(state.winner);
+        if (state.winner !== state.myColor) {
+          soundLose.play().catch(e => console.log("Audio bloqué", e));
+        }
       }
     }
   } catch(e) {}
