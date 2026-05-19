@@ -1,6 +1,35 @@
 // ── Constants ────────────────────────────────────────────────────────────────
 const BOARD_SIZE = 15;
 const COLS = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O'];
+const soundRB1 = new Audio('/static/sounds/Didnt see that did u.mp3');
+const soundRB2 = new Audio('/static/sounds/Hurry up.mp3');
+const soundRB3 = new Audio('/static/sounds/Play u dummy.mp3');
+const soundRB4 = new Audio('/static/sounds/The best u could do.mp3');
+const soundRB5 = new Audio('/static/sounds/What are u waiting for idiot.mp3');
+
+const tauntSounds = [soundRB1, soundRB2, soundRB3, soundRB4, soundRB5];
+let idleTimer = null;
+
+function resetIdleTimer() {
+  // 1. On annule l'ancien chronomètre pour repartir à zéro
+  clearTimeout(idleTimer);
+
+  // 2. Si la partie est terminée, ou que l'adversaire n'est pas encore là, on ne fait rien
+  if (state.winner || !state.opponentJoined) return;
+
+  // 3. On lance un nouveau compte à rebours de 10 secondes (10 000 ms)
+  idleTimer = setTimeout(() => {
+    // Choisir un son au hasard dans la liste
+    const randomIndex = Math.floor(Math.random() * tauntSounds.length);
+    const randomSound = tauntSounds[randomIndex];
+    
+    // Jouer le son
+    randomSound.play().catch(err => console.log("Audio bloqué", err));
+
+    // Optionnel : On relance le minuteur pour recommencer dans 10s si ça ne joue toujours pas !
+    resetIdleTimer();
+  }, 10000);
+}
 
 let CELL, MARGIN, canvas, ctx;
 
@@ -22,6 +51,8 @@ let pollInterval = null;
 async function initGame(gid, pid) {
   gameId   = gid;
   playerId = pid;
+
+  resetIdleTimer();
 
   setupCanvas();
   window.addEventListener("resize", () => { setupCanvas(); drawBoard(); });
@@ -60,6 +91,8 @@ async function poll() {
       applyState(data);
       drawBoard();
       renderSidebar();
+
+      resetIdleTimer();
 
       if (!wasOpponentJoined && state.opponentJoined) {
         setStatus(t("opponent_joined"));
@@ -227,6 +260,8 @@ async function onCanvasClick(e) {
 
   state.board[r][c] = state.myColor;
   drawBoard();
+
+  resetIdleTimer();
 
   const res  = await fetch("/move", {
     method: "POST",

@@ -384,7 +384,7 @@ body {
 .friend-name {
   font-family: var(--mono);
   font-size: .82rem;
-  color: var(--paper);
+  color: var(--wood-darkpaper);
 }
 .friend-actions { display: flex; gap: .3rem; }
 

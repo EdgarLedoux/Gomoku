@@ -141,16 +141,20 @@
       const el      = document.getElementById("friends-list-invite");
 
       if (!friends.length) {
-        el.innerHTML = '<p class="empty-msg">Aucun ami pour l\'instant.<br><a href="/profile">Ajouter des amis →</a></p>';
+        el.innerHTML = `
+      <p class="empty-msg">
+        <span data-i18n="no_friends">${t('no_friends')}</span><br>
+        <a href="/profile" data-i18n="add_friends_link">${t('add_friends_link')}</a>
+        </p>`;
         return;
       }
 
       el.innerHTML = friends.map(f =>
         `<div class="friend-row">
-          <span class="friend-name">${f.username}</span>
-          <button class="btn btn-primary btn-sm" onclick="inviteFriend('${f.id}', '${f.username}')">
-            Inviter
-          </button>
+      <span class="friend-name">${f.username}</span>
+      <button class="btn btn-primary btn-sm" data-i18n="invite_btn" onclick="inviteFriend('${f.id}', '${f.username}')">
+        ${t('invite_btn')}
+        </button>
         </div>`
       ).join("");
     }
