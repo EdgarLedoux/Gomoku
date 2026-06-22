@@ -1,50 +1,160 @@
 // ── Constants ────────────────────────────────────────────────────────────────
 const BOARD_SIZE = 15;
 const COLS = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O'];
-const soundRB1 = new Audio('/static/sounds/Didnt see that did u.mp3');
-const soundRB2 = new Audio('/static/sounds/Hurry up.mp3');
-const soundRB3 = new Audio('/static/sounds/Play u dummy.mp3');
-const soundRB4 = new Audio('/static/sounds/The best u could do.mp3');
-const soundRB5 = new Audio('/static/sounds/What are u waiting for idiot.mp3');
-const soundLose = new Audio('/static/sounds/Awww so cute.mp3');
 
+// ── Audio Engine (robuste mobile) ─────────────────────────────────────────────
+//
+// Stratégie multicouche :
+//   1. WebAudioContext : déverrouillé au premier geste, reste actif même dans
+//      les setTimeouts (contourne la politique autoplay mobile).
+//   2. new Audio() en fallback si le fetch/decode échoue.
+//   3. Déverrouillage silencieux de tous les <Audio> au premier touch/click
+//      (pour le fallback).
+//   4. Noms de fichiers encodés proprement (pas d'espaces dans l'URL).
 
-const tauntSounds = [soundRB1, soundRB2, soundRB3, soundRB4, soundRB5];
+const SOUND_FILES = {
+  taunt1: '/static/sounds/Didnt_see_that_did_u.mp3',
+  taunt2: '/static/sounds/Hurry_up.mp3',
+  taunt3: '/static/sounds/Play_u_dummy.mp3',
+  taunt4: '/static/sounds/The_best_u_could_do.mp3',
+  taunt5: '/static/sounds/What_are_u_waiting_for_idiot.mp3',
+  lose:   '/static/sounds/Awww_so_cute.mp3',
+};
+
+// Encode les espaces et caractères spéciaux dans les chemins
+function encodeSoundPath(path) {
+  const parts = path.split('/');
+  return parts.map((p, i) => i === parts.length - 1 ? encodeURIComponent(p) : p).join('/');
+}
+
+let audioCtx      = null;   // WebAudioContext partagé
+let audioUnlocked = false;  // true dès le premier geste utilisateur
+
+// Buffers décodés (WebAudio) — chargés au premier geste
+const audioBuffers  = {};
+// Éléments <Audio> fallback — créés immédiatement
+const audioElements = {};
+
+// Crée les éléments <Audio> fallback
+for (const [key, path] of Object.entries(SOUND_FILES)) {
+  const el = new Audio(encodeSoundPath(path));
+  el.preload = 'auto';
+  audioElements[key] = el;
+}
+
+// Obtenir (ou créer) l'AudioContext
+function getAudioCtx() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  return audioCtx;
+}
+
+// Charger un fichier audio en buffer WebAudio
+async function loadBuffer(key, path) {
+  try {
+    const ctx = getAudioCtx();
+    const res = await fetch(encodeSoundPath(path));
+    if (!res.ok) return;
+    const arrayBuffer = await res.arrayBuffer();
+    audioBuffers[key] = await ctx.decodeAudioData(arrayBuffer);
+  } catch (e) {
+    console.warn(`[Audio] Impossible de charger ${key} via WebAudio, fallback <Audio>`, e);
+  }
+}
+
+// Déverrouillage au premier geste utilisateur :
+//   - reprend l'AudioContext (peut être suspendu sur iOS)
+//   - lance un silence sur tous les <Audio> pour les "débloquer"
+//   - charge les buffers WebAudio
+async function unlockAudio() {
+  if (audioUnlocked) return;
+  audioUnlocked = true;
+
+  // 1. Reprendre l'AudioContext
+  const ctx = getAudioCtx();
+  if (ctx.state === 'suspended') {
+    await ctx.resume().catch(() => {});
+  }
+
+  // 2. Débloquer les <Audio> fallback (jeu silencieux instantané)
+  for (const el of Object.values(audioElements)) {
+    el.volume = 0;
+    el.play().then(() => {
+      el.pause();
+      el.currentTime = 0;
+      el.volume = 1;
+    }).catch(() => {});
+  }
+
+  // 3. Charger les buffers WebAudio en parallèle
+  await Promise.all(
+    Object.entries(SOUND_FILES).map(([key, path]) => loadBuffer(key, path))
+  );
+
+  console.log('[Audio] Contexte audio déverrouillé ✓');
+}
+
+// Jouer un son : WebAudio en priorité, <Audio> en fallback
+function playSound(key) {
+  try {
+    const ctx    = getAudioCtx();
+    const buffer = audioBuffers[key];
+
+    if (buffer && ctx.state === 'running') {
+      // Chemin WebAudio (fonctionne dans les setTimeouts)
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(ctx.destination);
+      source.start(0);
+      return;
+    }
+  } catch (e) {
+    console.warn('[Audio] WebAudio échoué, fallback', e);
+  }
+
+  // Fallback <Audio>
+  const el = audioElements[key];
+  if (el) {
+    el.currentTime = 0;
+    el.play().catch(e => console.log('[Audio] Fallback bloqué:', e));
+  }
+}
+
+// Écouter le premier geste
+document.addEventListener('touchstart', unlockAudio, { once: true, passive: true });
+document.addEventListener('click',      unlockAudio, { once: true });
+
+// Listes de sons
+const TAUNT_KEYS = ['taunt1', 'taunt2', 'taunt3', 'taunt4', 'taunt5'];
+
+// ── Idle timer ────────────────────────────────────────────────────────────────
 let idleTimer = null;
 
 function resetIdleTimer() {
-  // 1. On annule l'ancien chronomètre pour repartir à zéro
   clearTimeout(idleTimer);
-
-  // 2. Si la partie est terminée, ou que l'adversaire n'est pas encore là, on ne fait rien
   if (state.winner || !state.opponentJoined) return;
 
-  // 3. On lance un nouveau compte à rebours de 10 secondes (10 000 ms)
   idleTimer = setTimeout(() => {
-    // Choisir un son au hasard dans la liste
     if (isMyTurn()) {
-      const randomIndex = Math.floor(Math.random() * tauntSounds.length);
-      const randomSound = tauntSounds[randomIndex];
-      
-      // On remet le son à zéro au cas où il était déjà en train de jouer
-      randomSound.currentTime = 0;
-      randomSound.play().catch(err => console.log("Audio bloqué", err));
+      const key = TAUNT_KEYS[Math.floor(Math.random() * TAUNT_KEYS.length)];
+      playSound(key);
     }
-    // Optionnel : On relance le minuteur pour recommencer dans 10s si ça ne joue toujours pas !
     resetIdleTimer();
   }, 10000);
 }
 
+// ── Board / game state ────────────────────────────────────────────────────────
 let CELL, MARGIN, canvas, ctx;
 
 let state = {
-  board: Array.from({ length: BOARD_SIZE }, () => Array(BOARD_SIZE).fill(null)),
-  myColor: null,
-  currentTurn: null,
-  winner: null,
+  board:          Array.from({ length: BOARD_SIZE }, () => Array(BOARD_SIZE).fill(null)),
+  myColor:        null,
+  currentTurn:    null,
+  winner:         null,
   opponentJoined: false,
-  lastUpdated: 0,
-  playerNames: {},
+  lastUpdated:    0,
+  playerNames:    {},
 };
 
 let gameId       = null;
@@ -59,7 +169,7 @@ async function initGame(gid, pid) {
   resetIdleTimer();
 
   setupCanvas();
-  window.addEventListener("resize", () => { setupCanvas(); drawBoard(); });
+  window.addEventListener('resize', () => { setupCanvas(); drawBoard(); });
 
   await fetchState();
   renderSidebar();
@@ -68,20 +178,20 @@ async function initGame(gid, pid) {
   pollInterval = setInterval(poll, 2000);
 
   // Resign button
-  const btn = document.getElementById("btn-resign");
-  if (btn) btn.addEventListener("click", async () => {
-    if (!confirm(t("resign_btn"))) return;
-    await fetch("/resign", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+  const btn = document.getElementById('btn-resign');
+  if (btn) btn.addEventListener('click', async () => {
+    if (!confirm(t('resign_btn'))) return;
+    await fetch('/resign', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ game_id: gameId, player_id: playerId }),
     });
     await poll();
   });
 
   // Rematch button
-  const rematchBtn = document.getElementById("btn-rematch");
-  if (rematchBtn) rematchBtn.addEventListener("click", doRematch);
+  const rematchBtn = document.getElementById('btn-rematch');
+  if (rematchBtn) rematchBtn.addEventListener('click', doRematch);
 }
 
 // ── Polling ───────────────────────────────────────────────────────────────────
@@ -95,21 +205,18 @@ async function poll() {
       applyState(data);
       drawBoard();
       renderSidebar();
-
       resetIdleTimer();
 
       if (!wasOpponentJoined && state.opponentJoined) {
-        setStatus(t("opponent_joined"));
+        setStatus(t('opponent_joined'));
         setTimeout(() => setStatus(turnStatus()), 1500);
       }
       if (state.winner) {
         clearInterval(pollInterval);
-        
         clearTimeout(idleTimer);
-
         showEndOverlay(state.winner);
         if (state.winner !== state.myColor) {
-          soundLose.play().catch(e => console.log("Audio bloqué", e));
+          playSound('lose');
         }
       }
     }
@@ -133,18 +240,18 @@ function applyState(data) {
   state.playerNames    = data.player_names || {};
 
   if (data.moves) {
-    const list = document.getElementById("moves-list");
-    list.innerHTML = "";
+    const list = document.getElementById('moves-list');
+    list.innerHTML = '';
     data.moves.forEach((m, i) => addMoveToList(m, i + 1));
   }
 }
 
 // ── Canvas setup ──────────────────────────────────────────────────────────────
 function setupCanvas() {
-  canvas = document.getElementById("board-canvas");
-  ctx    = canvas.getContext("2d");
+  canvas = document.getElementById('board-canvas');
+  ctx    = canvas.getContext('2d');
 
-  const area    = document.querySelector(".board-area");
+  const area    = document.querySelector('.board-area');
   const maxSide = Math.min(area.clientWidth - 32, area.clientHeight - 32, 700);
 
   MARGIN = Math.round(maxSide * 0.045);
@@ -154,10 +261,10 @@ function setupCanvas() {
   canvas.width  = size;
   canvas.height = size;
 
-  canvas.removeEventListener("click", onCanvasClick);
-  canvas.addEventListener("click", onCanvasClick);
-  canvas.removeEventListener("mousemove", onCanvasHover);
-  canvas.addEventListener("mousemove", onCanvasHover);
+  canvas.removeEventListener('click', onCanvasClick);
+  canvas.addEventListener('click', onCanvasClick);
+  canvas.removeEventListener('mousemove', onCanvasHover);
+  canvas.addEventListener('mousemove', onCanvasHover);
 }
 
 // ── Drawing ───────────────────────────────────────────────────────────────────
@@ -167,10 +274,10 @@ function drawBoard() {
   if (!ctx) return;
   const size = canvas.width;
 
-  ctx.fillStyle = "#c8854a";
+  ctx.fillStyle = '#c8854a';
   ctx.fillRect(0, 0, size, size);
 
-  ctx.strokeStyle = "rgba(140,80,30,0.18)";
+  ctx.strokeStyle = 'rgba(140,80,30,0.18)';
   ctx.lineWidth = 1;
   for (let y = 0; y < size; y += 18) {
     ctx.beginPath();
@@ -179,7 +286,7 @@ function drawBoard() {
     ctx.stroke();
   }
 
-  ctx.strokeStyle = "rgba(60,30,5,0.55)";
+  ctx.strokeStyle = 'rgba(60,30,5,0.55)';
   ctx.lineWidth = 1;
   for (let i = 0; i < BOARD_SIZE; i++) {
     const x = MARGIN + i * CELL, y = MARGIN + i * CELL;
@@ -187,9 +294,9 @@ function drawBoard() {
     ctx.beginPath(); ctx.moveTo(MARGIN, y); ctx.lineTo(MARGIN + (BOARD_SIZE-1)*CELL, y); ctx.stroke();
   }
 
-  ctx.fillStyle = "rgba(60,30,5,0.55)";
+  ctx.fillStyle = 'rgba(60,30,5,0.55)';
   ctx.font = `${Math.round(CELL*0.28)}px 'Space Mono', monospace`;
-  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   for (let i = 0; i < BOARD_SIZE; i++) {
     ctx.fillText(COLS[i], MARGIN + i*CELL, MARGIN - CELL*0.55);
     ctx.fillText(String(i+1).padStart(2,' '), MARGIN - CELL*0.6, MARGIN + i*CELL);
@@ -197,7 +304,7 @@ function drawBoard() {
 
   const stars = [3, 7, 11];
   for (const sr of stars) for (const sc of stars) {
-    ctx.fillStyle = "rgba(60,30,5,0.6)";
+    ctx.fillStyle = 'rgba(60,30,5,0.6)';
     ctx.beginPath();
     ctx.arc(MARGIN + sc*CELL, MARGIN + sr*CELL, CELL*0.1, 0, Math.PI*2);
     ctx.fill();
@@ -212,12 +319,12 @@ function drawBoard() {
     for (let c = 0; c < BOARD_SIZE; c++)
       if (state.board[r][c]) drawStone(r, c, state.board[r][c], 1);
 
-  const moves = document.getElementById("moves-list").children;
+  const moves = document.getElementById('moves-list').children;
   if (moves.length > 0) {
     const last = moves[moves.length - 1];
     const rc   = last.dataset;
     if (rc.row !== undefined) {
-      ctx.strokeStyle = "rgba(192,57,43,0.85)";
+      ctx.strokeStyle = 'rgba(192,57,43,0.85)';
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.arc(MARGIN + Number(rc.col)*CELL, MARGIN + Number(rc.row)*CELL, CELL*0.19, 0, Math.PI*2);
@@ -230,19 +337,19 @@ function drawStone(row, col, color, alpha) {
   const x = MARGIN + col*CELL, y = MARGIN + row*CELL, r = CELL*0.44;
   ctx.save();
   ctx.globalAlpha = alpha;
-  ctx.shadowColor = "rgba(0,0,0,0.5)"; ctx.shadowBlur = 6;
+  ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 6;
   ctx.shadowOffsetX = 2; ctx.shadowOffsetY = 3;
 
   const grad = ctx.createRadialGradient(x-r*0.3, y-r*0.3, r*0.05, x, y, r);
-  if (color === "black") { grad.addColorStop(0,"#4a3820"); grad.addColorStop(1,"#0d0803"); }
-  else                   { grad.addColorStop(0,"#ffffff"); grad.addColorStop(1,"#d0c8b0"); }
+  if (color === 'black') { grad.addColorStop(0,'#4a3820'); grad.addColorStop(1,'#0d0803'); }
+  else                   { grad.addColorStop(0,'#ffffff'); grad.addColorStop(1,'#d0c8b0'); }
   ctx.fillStyle = grad;
   ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.fill();
 
-  ctx.shadowColor = "transparent";
+  ctx.shadowColor = 'transparent';
   const shine = ctx.createRadialGradient(x-r*0.35, y-r*0.35, 0, x-r*0.1, y-r*0.1, r*0.55);
-  shine.addColorStop(0, color==="black" ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.7)");
-  shine.addColorStop(1, "rgba(255,255,255,0)");
+  shine.addColorStop(0, color==='black' ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.7)');
+  shine.addColorStop(1, 'rgba(255,255,255,0)');
   ctx.fillStyle = shine;
   ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.fill();
   ctx.restore();
@@ -262,6 +369,8 @@ function cellFromEvent(e) {
 function onCanvasHover(e) { hoverCell = cellFromEvent(e); drawBoard(); }
 
 async function onCanvasClick(e) {
+  // Le clic sur le canvas déclenche unlockAudio() via le listener global,
+  // garantissant que le contexte est prêt avant le prochain son.
   if (!isMyTurn() || state.winner) return;
   const cell = cellFromEvent(e);
   if (!cell) return;
@@ -270,12 +379,11 @@ async function onCanvasClick(e) {
 
   state.board[r][c] = state.myColor;
   drawBoard();
-
   resetIdleTimer();
 
-  const res  = await fetch("/move", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
+  const res  = await fetch('/move', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ game_id: gameId, player_id: playerId, row: r, col: c }),
   });
   const data = await res.json();
@@ -283,7 +391,7 @@ async function onCanvasClick(e) {
   if (!res.ok) {
     state.board[r][c] = null;
     drawBoard();
-    setStatus("⚠ " + (data.error || "Erreur"));
+    setStatus('⚠ ' + (data.error || 'Erreur'));
     return;
   }
   await poll();
@@ -293,21 +401,20 @@ async function onCanvasClick(e) {
 let rematchPollInterval = null;
 
 async function doRematch() {
-  document.getElementById("btn-rematch").disabled = true;
-  document.getElementById("rematch-status").classList.remove("hidden");
+  document.getElementById('btn-rematch').disabled = true;
+  document.getElementById('rematch-status').classList.remove('hidden');
 
-  const res  = await fetch("/rematch", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
+  const res  = await fetch('/rematch', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ game_id: gameId, player_id: playerId }),
   });
   const data = await res.json();
   if (!res.ok) { alert(data.error); return; }
 
-  const newGameId  = data.game_id;
+  const newGameId   = data.game_id;
   const newPlayerId = data.player_id;
 
-  // Poll until opponent joins the new game
   rematchPollInterval = setInterval(async () => {
     const r2 = await fetch(`/state/${newGameId}?player_id=${newPlayerId}`);
     const st = await r2.json();
@@ -324,25 +431,24 @@ function isMyTurn() {
 }
 
 function turnStatus() {
-  if (!state.opponentJoined) return t("status_waiting");
-  if (state.winner)          return t("status_finished");
-  if (isMyTurn())            return t("status_my_turn");
-  return t("status_opp_turn");
+  if (!state.opponentJoined) return t('status_waiting');
+  if (state.winner)          return t('status_finished');
+  if (isMyTurn())            return t('status_my_turn');
+  return t('status_opp_turn');
 }
 
 function setStatus(msg) {
-  document.getElementById("status-text").textContent = msg;
+  document.getElementById('status-text').textContent = msg;
 }
 
 function renderSidebar() {
-  const myStone  = document.getElementById("my-stone");
-  const oppStone = document.getElementById("opp-stone");
-  const myLabel  = document.getElementById("my-name-label");
-  const oppLabel = document.getElementById("opp-name-label");
+  const myStone  = document.getElementById('my-stone');
+  const oppStone = document.getElementById('opp-stone');
+  const myLabel  = document.getElementById('my-name-label');
+  const oppLabel = document.getElementById('opp-name-label');
 
-  // Find my player_id's username
-  const myName  = state.playerNames[playerId] || (state.myColor === "black" ? "Noir" : "Blanc");
-  let oppName   = "–";
+  const myName = state.playerNames[playerId] || (state.myColor === 'black' ? 'Noir' : 'Blanc');
+  let oppName  = '–';
   for (const [pid, name] of Object.entries(state.playerNames)) {
     if (pid !== playerId) { oppName = name; break; }
   }
@@ -350,34 +456,29 @@ function renderSidebar() {
   myLabel.textContent  = myName;
   oppLabel.textContent = oppName;
 
-  if (state.myColor === "white") {
-    myStone.classList.add("white-stone");
+  if (state.myColor === 'white') {
+    myStone.classList.add('white-stone');
   } else {
-    oppStone.classList.add("white-stone");
+    oppStone.classList.add('white-stone');
   }
 
   setStatus(turnStatus());
 }
 
 function addMoveToList(move, n) {
-  const li = document.createElement("li");
-  li.textContent = `${n}. ${move.color==="black"?"●":"○"} ${COLS[move.col]}${move.row+1}`;
+  const li = document.createElement('li');
+  li.textContent = `${n}. ${move.color==='black'?'●':'○'} ${COLS[move.col]}${move.row+1}`;
   li.dataset.row = move.row;
   li.dataset.col = move.col;
-  const list = document.getElementById("moves-list");
+  const list = document.getElementById('moves-list');
   list.appendChild(li);
   list.scrollTop = list.scrollHeight;
 }
 
-function showEndOverlay(winner, resigned = false) {
-  const overlay = document.getElementById("overlay");
-  const title   = document.getElementById("overlay-title");
-  const winnerLabel = winner === state.myColor ? t("you_won") : t("opp_won");
-  title.textContent = resigned
-    ? (winner === state.myColor ? t("opp_resigned") : t("you_resigned"))
-    : winnerLabel;
-  overlay.classList.remove("hidden");
-  setStatus("Partie terminée");
+function showEndOverlay(winner) {
+  const overlay = document.getElementById('overlay');
+  const title   = document.getElementById('overlay-title');
+  title.textContent = winner === state.myColor ? t('you_won') : t('opp_won');
+  overlay.classList.remove('hidden');
+  setStatus('Partie terminée');
 }
-
-// Vous avez gagné 🎉" : "Votre adversaire a gagné
