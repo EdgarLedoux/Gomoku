@@ -1,5 +1,5 @@
 // ── Constants ────────────────────────────────────────────────────────────────
-const BOARD_SIZE = 19;
+const BOARD_SIZE = 15;
 const COLS = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O'];
 
 // ── Audio Engine (robuste mobile) ─────────────────────────────────────────────
