@@ -94,6 +94,7 @@ def make_game(game_id, player1_id, player2_id=None):
         "moves": [],
         "created_at": time.time(),
         "last_updated": time.time(),
+        "turn_started_at": time.time(),
     }
 
 
@@ -109,6 +110,18 @@ def check_win(board, row, col, color):
         if count >= WIN_LENGTH:
             return True
     return False
+
+
+def head_to_head(db, my_id, other_id):
+    """Retourne (mes victoires, ses victoires) l'un contre l'autre, toutes parties confondues."""
+    row = db.execute("""
+        SELECT
+          SUM(CASE WHEN winner_id=? THEN 1 ELSE 0 END) as my_wins,
+          SUM(CASE WHEN winner_id=? THEN 1 ELSE 0 END) as their_wins
+        FROM game_history
+        WHERE (player1_id=? AND player2_id=?) OR (player1_id=? AND player2_id=?)
+    """, (my_id, other_id, my_id, other_id, other_id, my_id)).fetchone()
+    return (row["my_wins"] or 0), (row["their_wins"] or 0)
 
 
 # ── Auth helpers ──────────────────────────────────────────────────────────────
@@ -217,6 +230,9 @@ def profile_page():
         WHERE f.from_id=? OR f.to_id=?
     """, (user["id"], user["id"], user["id"])).fetchall()
     friends = [dict(f) for f in friends]
+    for f in friends:
+        if f["status"] == "accepted":
+            f["h2h_wins"], f["h2h_losses"] = head_to_head(db, user["id"], f["id"])
 
     # Pending requests received
     pending = db.execute("""
@@ -240,6 +256,47 @@ def game_page(game_id):
     if game_id not in games:
         return redirect(url_for("index"))
     return render_template("game.html", game_id=game_id)
+
+
+@app.route("/replay/<game_id>")
+@login_required
+def replay_page(game_id):
+    user = current_user()
+    db   = get_db()
+    row  = db.execute("""
+        SELECT gh.*, u1.username as p1_name, u2.username as p2_name,
+               uw.username as winner_name
+        FROM game_history gh
+        JOIN users u1 ON gh.player1_id = u1.id
+        JOIN users u2 ON gh.player2_id = u2.id
+        LEFT JOIN users uw ON gh.winner_id = uw.id
+        WHERE gh.id=? AND (gh.player1_id=? OR gh.player2_id=?)
+    """, (game_id, user["id"], user["id"])).fetchone()
+    if not row:
+        return redirect(url_for("profile_page"))
+
+    game = dict(row)
+    game["my_color"] = "black" if game["player1_id"] == user["id"] else "white"
+    return render_template("replay.html", game=game)
+
+
+@app.route("/replay_data/<game_id>")
+@login_required
+def replay_data(game_id):
+    user = current_user()
+    db   = get_db()
+    row  = db.execute("""
+        SELECT * FROM game_history
+        WHERE id=? AND (player1_id=? OR player2_id=?)
+    """, (game_id, user["id"], user["id"])).fetchone()
+    if not row:
+        return jsonify({"error": "Partie introuvable"}), 404
+
+    return jsonify({
+        "moves":      json.loads(row["moves_json"]),
+        "winner_id":  row["winner_id"],
+        "my_color":   "black" if row["player1_id"] == user["id"] else "white",
+    })
 
 
 # ── Friend routes ─────────────────────────────────────────────────────────────
@@ -401,6 +458,7 @@ def invitations_respond():
     player_id = str(uuid.uuid4())
     game["players"][player_id] = "white"
     game["last_updated"] = time.time()
+    game["turn_started_at"] = time.time()
     if "user_ids" not in game:
         game["user_ids"] = {}
     game["user_ids"][player_id] = user["id"]
@@ -455,6 +513,7 @@ def join_game():
     player_id = str(uuid.uuid4())
     game["players"][player_id] = "white"
     game["last_updated"] = time.time()
+    game["turn_started_at"] = time.time()
     if "user_ids" not in game:
         game["user_ids"] = {}
     game["user_ids"][player_id] = user["id"]
@@ -489,6 +548,7 @@ def get_state(game_id):
         "moves":            game["moves"],
         "last_updated":     game["last_updated"],
         "player_names":     names,
+        "turn_started_at":  game["turn_started_at"],
     })
 
 
@@ -516,9 +576,13 @@ def play_move():
     if game["board"][row][col] is not None:
         return jsonify({"error": "Case déjà occupée"}), 400
 
+    now = time.time()
+    think_time = round(now - game.get("turn_started_at", now), 1)
+
     game["board"][row][col] = my_color
-    game["moves"].append({"row": row, "col": col, "color": my_color})
-    game["last_updated"] = time.time()
+    game["moves"].append({"row": row, "col": col, "color": my_color, "think_time": think_time})
+    game["last_updated"] = now
+    game["turn_started_at"] = now
 
     winner = None
     if check_win(game["board"], row, col, my_color):

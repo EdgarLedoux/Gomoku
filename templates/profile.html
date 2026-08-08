@@ -60,6 +60,9 @@
               {% if f.status == 'accepted' %}
               <div class="friend-row" id="friend-{{ f.friendship_id }}">
                 <span class="friend-name">{{ f.username }}</span>
+                <span class="h2h-score mono" title="Victoires vous / victoires {{ f.username }}">
+                  <span class="h2h-win">{{ f.h2h_wins }}</span>–<span class="h2h-loss">{{ f.h2h_losses }}</span>
+                </span>
                 <button class="btn btn-ghost btn-sm"
                   onclick="removeFriend('{{ f.friendship_id }}')" data-i18n="remove_friend">Retirer</button>
               </div>
@@ -87,6 +90,7 @@
                 <th data-i18n="col_opponent">Adversaire</th>
                 <th data-i18n="col_result">Résultat</th>
                 <th data-i18n="col_moves">Coups</th>
+                <th data-i18n="col_replay">Revoir</th>
               </tr>
             </thead>
             <tbody>
@@ -107,6 +111,7 @@
                   {% endif %}
                 </td>
                 <td class="mono">{{ g.moves_json | count_moves }}</td>
+                <td><a href="/replay/{{ g.id }}" class="btn btn-ghost btn-sm" data-i18n="replay_btn">▶</a></td>
               </tr>
               {% endfor %}
             </tbody>

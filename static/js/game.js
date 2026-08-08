@@ -1,5 +1,5 @@
 // ── Constants ────────────────────────────────────────────────────────────────
-const BOARD_SIZE = 15;
+const BOARD_SIZE = 19;
 const COLS = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O'];
 
 // ── Audio Engine (robuste mobile) ─────────────────────────────────────────────
@@ -155,11 +155,14 @@ let state = {
   opponentJoined: false,
   lastUpdated:    0,
   playerNames:    {},
+  turnStartedAt:  0,
+  movesRaw:       [],
 };
 
-let gameId       = null;
-let playerId     = null;
-let pollInterval = null;
+let gameId        = null;
+let playerId      = null;
+let pollInterval  = null;
+let timerInterval = null;
 
 // ── Entry point ───────────────────────────────────────────────────────────────
 async function initGame(gid, pid) {
@@ -174,8 +177,10 @@ async function initGame(gid, pid) {
   await fetchState();
   renderSidebar();
   drawBoard();
+  updateTimers();
 
-  pollInterval = setInterval(poll, 2000);
+  pollInterval  = setInterval(poll, 2000);
+  timerInterval = setInterval(updateTimers, 500);
 
   // Resign button
   const btn = document.getElementById('btn-resign');
@@ -205,6 +210,7 @@ async function poll() {
       applyState(data);
       drawBoard();
       renderSidebar();
+      updateTimers();
       resetIdleTimer();
 
       if (!wasOpponentJoined && state.opponentJoined) {
@@ -213,6 +219,7 @@ async function poll() {
       }
       if (state.winner) {
         clearInterval(pollInterval);
+        clearInterval(timerInterval);
         clearTimeout(idleTimer);
         showEndOverlay(state.winner);
         if (state.winner !== state.myColor) {
@@ -238,12 +245,50 @@ function applyState(data) {
   state.opponentJoined = data.opponent_joined;
   state.lastUpdated    = data.last_updated;
   state.playerNames    = data.player_names || {};
+  state.turnStartedAt  = data.turn_started_at || 0;
+  state.movesRaw       = data.moves || [];
 
   if (data.moves) {
     const list = document.getElementById('moves-list');
     list.innerHTML = '';
     data.moves.forEach((m, i) => addMoveToList(m, i + 1));
   }
+}
+
+// ── Timers ────────────────────────────────────────────────────────────────────
+function formatTime(seconds) {
+  const s = Math.max(0, Math.round(seconds));
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return `${String(m).padStart(2,'0')}:${String(r).padStart(2,'0')}`;
+}
+
+function updateTimers() {
+  const myEl   = document.getElementById('my-timer');
+  const oppEl  = document.getElementById('opp-timer');
+  const myInfo = document.getElementById('my-info');
+  const oppInfo= document.getElementById('opp-info');
+  if (!myEl || !oppEl) return;
+
+  const oppColor = state.myColor === 'black' ? 'white' : 'black';
+
+  // Dernier temps de réflexion connu pour chaque couleur (coup déjà joué)
+  const lastThink = { black: 0, white: 0 };
+  for (const m of state.movesRaw) {
+    if (m.think_time !== undefined) lastThink[m.color] = m.think_time;
+  }
+
+  const canTick = state.opponentJoined && !state.winner;
+  const liveElapsed = canTick ? (Date.now() / 1000 - state.turnStartedAt) : 0;
+
+  const myActive  = canTick && state.currentTurn === state.myColor;
+  const oppActive = canTick && state.currentTurn === oppColor;
+
+  myEl.textContent  = formatTime(myActive  ? liveElapsed : lastThink[state.myColor]);
+  oppEl.textContent = formatTime(oppActive ? liveElapsed : lastThink[oppColor]);
+
+  if (myInfo)  myInfo.classList.toggle('active-turn', myActive);
+  if (oppInfo) oppInfo.classList.toggle('active-turn', oppActive);
 }
 
 // ── Canvas setup ──────────────────────────────────────────────────────────────

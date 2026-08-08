@@ -384,9 +384,19 @@ body {
 .friend-name {
   font-family: var(--mono);
   font-size: .82rem;
-  color: var(--wood-darkpaper);
+  color: var(--paper);
 }
 .friend-actions { display: flex; gap: .3rem; }
+
+.h2h-score {
+  font-family: var(--mono);
+  font-size: .72rem;
+  color: var(--wood-light);
+  letter-spacing: .03em;
+  white-space: nowrap;
+}
+.h2h-score .h2h-win  { color: var(--green); font-weight: 700; }
+.h2h-score .h2h-loss { color: var(--accent); font-weight: 700; }
 
 .badge-pending {
   font-family: var(--mono);
@@ -489,6 +499,17 @@ body {
 .stone-icon.white-stone { background: var(--stone-w); }
 .player-label { font-size: .68rem; color: var(--wood-light); letter-spacing: .08em; }
 
+.player-timer {
+  font-family: var(--mono);
+  font-size: .78rem;
+  color: rgba(245,234,214,.45);
+  letter-spacing: .04em;
+  margin-top: .1rem;
+  transition: color .2s;
+}
+.player-info.active-turn { background: rgba(200,133,74,.14); }
+.player-info.active-turn .player-timer { color: var(--wood-light); font-weight: 700; }
+
 .status-box {
   background: rgba(200,133,74,.12);
   border: 1px solid rgba(200,133,74,.3);
@@ -571,6 +592,40 @@ body {
   letter-spacing: .08em;
 }
 .overlay-buttons { display: flex; gap: .6rem; justify-content: center; flex-wrap: wrap; }
+
+/* ── Replay ───────────────────────────────────────────────────────────────── */
+.replay-meta {
+  font-size: .78rem;
+  color: var(--wood-light);
+  line-height: 1.6;
+}
+.replay-meta .replay-winner { color: var(--green); font-weight: 700; }
+
+.replay-controls {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  margin-top: auto;
+}
+.replay-controls .btn { flex: 1; padding: .5rem .4rem; font-size: .85rem; }
+
+.replay-counter {
+  font-family: var(--mono);
+  font-size: .78rem;
+  color: var(--wood-light);
+  text-align: center;
+  letter-spacing: .05em;
+}
+
+.replay-slider {
+  width: 100%;
+  accent-color: var(--wood);
+}
+
+.replay-move-current {
+  background: rgba(200,133,74,.18) !important;
+  color: var(--paper) !important;
+}
 
 /* ── Responsive ──────────────────────────────────────────────────────────── */
 @media (max-width: 640px) {
