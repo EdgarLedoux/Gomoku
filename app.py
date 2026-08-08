@@ -74,7 +74,7 @@ init_db()
 
 # ── In-memory game state ──────────────────────────────────────────────────────
 games = {}
-BOARD_SIZE = 15
+BOARD_SIZE = 19
 WIN_LENGTH  = 5
 DIRECTIONS  = [(1,0),(0,1),(1,1),(1,-1)]
 

@@ -1,6 +1,6 @@
 // ── Constants ────────────────────────────────────────────────────────────────
-const BOARD_SIZE = 15;
-const COLS = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O'];
+const BOARD_SIZE = 19;
+const COLS = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S'];
 
 // ── Audio Engine (robuste mobile) ─────────────────────────────────────────────
 //
@@ -347,7 +347,7 @@ function drawBoard() {
     ctx.fillText(String(i+1).padStart(2,' '), MARGIN - CELL*0.6, MARGIN + i*CELL);
   }
 
-  const stars = [3, 7, 11];
+  const stars = [3, 9, 15];
   for (const sr of stars) for (const sc of stars) {
     ctx.fillStyle = 'rgba(60,30,5,0.6)';
     ctx.beginPath();

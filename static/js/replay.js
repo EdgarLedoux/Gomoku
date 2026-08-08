@@ -90,7 +90,7 @@ function drawBoard(board) {
     ctx.fillText(String(i+1).padStart(2,' '), MARGIN - CELL*0.6, MARGIN + i*CELL);
   }
 
-  const stars = [3, 7, 11];
+  const stars = [3, 9, 15];
   for (const sr of stars) for (const sc of stars) {
     ctx.fillStyle = 'rgba(60,30,5,0.6)';
     ctx.beginPath();
