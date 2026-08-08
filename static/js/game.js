@@ -156,6 +156,7 @@ let state = {
   lastUpdated:    0,
   playerNames:    {},
   turnStartedAt:  0,
+  totalThinkTime: { black: 0, white: 0 },
   movesRaw:       [],
 };
 
@@ -246,6 +247,7 @@ function applyState(data) {
   state.lastUpdated    = data.last_updated;
   state.playerNames    = data.player_names || {};
   state.turnStartedAt  = data.turn_started_at || 0;
+  state.totalThinkTime = data.total_think_time || { black: 0, white: 0 };
   state.movesRaw       = data.moves || [];
 
   if (data.moves) {
@@ -263,32 +265,28 @@ function formatTime(seconds) {
   return `${String(m).padStart(2,'0')}:${String(r).padStart(2,'0')}`;
 }
 
-function updateTimers() {
-  const myEl   = document.getElementById('my-timer');
-  const oppEl  = document.getElementById('opp-timer');
-  const myInfo = document.getElementById('my-info');
-  const oppInfo= document.getElementById('opp-info');
-  if (!myEl || !oppEl) return;
-
-  const oppColor = state.myColor === 'black' ? 'white' : 'black';
-
-  // Dernier temps de réflexion connu pour chaque couleur (coup déjà joué)
-  const lastThink = { black: 0, white: 0 };
-  for (const m of state.movesRaw) {
-    if (m.think_time !== undefined) lastThink[m.color] = m.think_time;
-  }
-
-  const canTick = state.opponentJoined && !state.winner;
+function updateTimers() { 
+  const myEl = document.getElementById('my-timer'); 
+  const oppEl = document.getElementById('opp-timer'); 
+  const myInfo = document.getElementById('my-info'); 
+  const oppInfo= document.getElementById('opp-info'); 
+  if (!myEl || !oppEl) return; 
+  
+  const oppColor = state.myColor === 'black' ? 'white' : 'black'; 
+  
+  const canTick = state.opponentJoined && !state.winner; 
   const liveElapsed = canTick ? (Date.now() / 1000 - state.turnStartedAt) : 0;
 
-  const myActive  = canTick && state.currentTurn === state.myColor;
-  const oppActive = canTick && state.currentTurn === oppColor;
+  const myActive = canTick && state.currentTurn === state.myColor; 
+  const oppActive = canTick && state.currentTurn === oppColor; 
+  
+  const myTotal = (state.totalThinkTime[state.myColor] || 0) + (myActive ? liveElapsed : 0); 
+  const oppTotal = (state.totalThinkTime[oppColor] || 0) + (oppActive ? liveElapsed : 0); 
 
-  myEl.textContent  = formatTime(myActive  ? liveElapsed : lastThink[state.myColor]);
-  oppEl.textContent = formatTime(oppActive ? liveElapsed : lastThink[oppColor]);
-
-  if (myInfo)  myInfo.classList.toggle('active-turn', myActive);
-  if (oppInfo) oppInfo.classList.toggle('active-turn', oppActive);
+  myEl.textContent = formatTime(myTotal); 
+  oppEl.textContent = formatTime(oppTotal); 
+  if (myInfo) myInfo.classList.toggle('active-turn', myActive); 
+  if (oppInfo) oppInfo.classList.toggle('active-turn', oppActive); 
 }
 
 // ── Canvas setup ──────────────────────────────────────────────────────────────

@@ -95,6 +95,7 @@ def make_game(game_id, player1_id, player2_id=None):
         "created_at": time.time(),
         "last_updated": time.time(),
         "turn_started_at": time.time(),
+        "total_think_time": {"black": 0, "white": 0},
     }
 
 
@@ -549,6 +550,7 @@ def get_state(game_id):
         "last_updated":     game["last_updated"],
         "player_names":     names,
         "turn_started_at":  game["turn_started_at"],
+        "total_think_time": game.get("total_think_time", {"black": 0, "white": 0}),
     })
 
 
@@ -583,6 +585,8 @@ def play_move():
     game["moves"].append({"row": row, "col": col, "color": my_color, "think_time": think_time})
     game["last_updated"] = now
     game["turn_started_at"] = now
+    game.setdefault("total_think_time", {"black": 0, "white": 0})
+    game["total_think_time"][my_color] = round(game["total_think_time"].get(my_color, 0) + think_time, 1)
 
     winner = None
     if check_win(game["board"], row, col, my_color):
