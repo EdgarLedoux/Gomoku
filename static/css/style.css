@@ -219,7 +219,7 @@ body {
 .nav-username {
   font-family: var(--mono);
   font-size: .78rem;
-  color: var(--wood);
+  color: var(--wood-light);
   letter-spacing: .1em;
 }
 
@@ -397,6 +397,10 @@ body {
 }
 .h2h-score .h2h-win  { color: var(--green); font-weight: 700; }
 .h2h-score .h2h-loss { color: var(--accent); font-weight: 700; }
+
+#friends-list-invite .friend-name {
+  color: var(--wood-dark);
+}
 
 .badge-pending {
   font-family: var(--mono);
