@@ -81,6 +81,50 @@
 
       <main class="profile-main">
         <section class="profile-section">
+          <h2 data-i18n="favorites_title">Parties favorites</h2>
+          {% if favorites %}
+          <table class="history-table">
+            <thead>
+              <tr>
+                <th data-i18n="col_date">Date</th>
+                <th data-i18n="col_opponent">Adversaire</th>
+                <th data-i18n="col_result">Résultat</th>
+                <th data-i18n="col_replay">Revoir</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for g in favorites %}
+              <tr>
+                <td class="mono">{{ g.played_at | int | format_date }}</td>
+                <td>
+                  {% if g.player1_id == user.id %}{{ g.p2_name }}
+                  {% else %}{{ g.p1_name }}{% endif %}
+                </td>
+                <td>
+                  {% if g.winner_id == user.id %}
+                    <span class="badge-win" data-i18n="win_badge">Victoire</span>
+                  {% elif g.winner_id %}
+                    <span class="badge-loss" data-i18n="loss_badge">Défaite</span>
+                  {% else %}
+                    <span class="badge-pending">–</span>
+                  {% endif %}
+                </td>
+                <td><a href="/replay/{{ g.id }}" class="btn btn-ghost btn-sm" data-i18n="replay_btn">▶</a></td>
+                <td>
+                  <button class="fav-btn active" id="fav-btn-{{ g.id }}"
+                    onclick="toggleFavorite('{{ g.id }}')" title="Retirer des favoris">★</button>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}
+            <p class="empty-msg" data-i18n="no_favorites">Aucune partie favorite. Clique sur l'étoile ★ d'une partie de l'historique pour l'ajouter ici.</p>
+          {% endif %}
+        </section>
+
+        <section class="profile-section">
           <h2 data-i18n="history_title">Historique des parties</h2>
           {% if history %}
           <table class="history-table">
@@ -91,6 +135,7 @@
                 <th data-i18n="col_result">Résultat</th>
                 <th data-i18n="col_moves">Coups</th>
                 <th data-i18n="col_replay">Revoir</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -112,10 +157,27 @@
                 </td>
                 <td class="mono">{{ g.moves_json | count_moves }}</td>
                 <td><a href="/replay/{{ g.id }}" class="btn btn-ghost btn-sm" data-i18n="replay_btn">▶</a></td>
+                <td>
+                  <button class="fav-btn {{ 'active' if g.is_favorite else '' }}" id="fav-btn-{{ g.id }}"
+                    onclick="toggleFavorite('{{ g.id }}')" title="Favori">★</button>
+                </td>
               </tr>
               {% endfor %}
             </tbody>
           </table>
+
+          {% if total_pages > 1 %}
+          <div class="pagination">
+            {% if page > 1 %}
+              <a href="/profile?page={{ page - 1 }}" class="btn btn-ghost btn-sm" data-i18n="prev_btn">◀ Précédent</a>
+            {% endif %}
+            <span class="pagination-counter mono">{{ page }} / {{ total_pages }}</span>
+            {% if page < total_pages %}
+              <a href="/profile?page={{ page + 1 }}" class="btn btn-ghost btn-sm" data-i18n="next_btn">Suivant ▶</a>
+            {% endif %}
+          </div>
+          {% endif %}
+
           {% else %}
             <p class="empty-msg" data-i18n="no_history">Aucune partie jouée pour l'instant.</p>
           {% endif %}
@@ -127,6 +189,16 @@
 
   <script src="/static/js/i18n.js"></script>
   <script>
+    async function toggleFavorite(gameId) {
+      const res  = await fetch("/favorites/toggle", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ game_id: gameId }),
+      });
+      const data = await res.json();
+      if (!res.ok) { alert(data.error || "Erreur"); return; }
+      location.reload();
+    }
     // ── Logout ────────────────────────────────────────────────────────────────
     async function doLogout() {
       await fetch("/logout", { method: "POST" });

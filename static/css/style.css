@@ -457,6 +457,32 @@ body {
 }
 .history-table tr:hover td { background: rgba(255,255,255,.03); }
 
+.fav-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 1.1rem;
+  line-height: 1;
+  color: rgba(200,133,74,.3);
+  transition: color .15s, transform .1s;
+}
+.fav-btn:hover { transform: scale(1.15); }
+.fav-btn.active { color: #e0a020; }
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+.pagination-counter {
+  font-size: .8rem;
+  color: var(--wood-light);
+  letter-spacing: .05em;
+}
+
+
 /* ── Game layout ─────────────────────────────────────────────────────────── */
 .game-layout {
   display: flex;

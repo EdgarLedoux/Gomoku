@@ -164,6 +164,7 @@ let gameId        = null;
 let playerId      = null;
 let pollInterval  = null;
 let timerInterval = null;
+let homeWatchInterval = null;
 
 // ── Entry point ───────────────────────────────────────────────────────────────
 async function initGame(gid, pid) {
@@ -524,4 +525,32 @@ function showEndOverlay(winner) {
   title.textContent = winner === state.myColor ? t('you_won') : t('opp_won');
   overlay.classList.remove('hidden');
   setStatus('Partie terminée');
+
+  if (!homeWatchInterval) {
+    homeWatchInterval = setInterval(checkHomeRedirect, 2000);
+  }
+}
+
+// ── Retour à l'accueil synchronisé ──────────────────────────────────────────
+async function checkHomeRedirect() {
+  try {
+    const res  = await fetch(`/state/${gameId}?player_id=${playerId}`);
+    const data = await res.json();
+    if (data.home_redirect) {
+      clearInterval(homeWatchInterval);
+      window.location.href = '/';
+    }
+  } catch (e) {}
+}
+
+async function goHome() {
+  try {
+    await fetch('/leave_game', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ game_id: gameId, player_id: playerId }),
+    });
+  } finally {
+    window.location.href = '/';
+  }
 }

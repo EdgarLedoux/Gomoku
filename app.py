@@ -65,6 +65,13 @@ def init_db():
             status     TEXT NOT NULL DEFAULT 'pending',
             created_at REAL NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS favorites (
+            id         TEXT PRIMARY KEY, 
+            user_id    TEXT NOT NULL, 
+            game_id    TEXT NOT NULL, 
+            created_at REAL NOT NULL, 
+            UNIQUE(user_id, game_id)
+        );
     """)
     db.commit()
     db.close()
@@ -96,6 +103,7 @@ def make_game(game_id, player1_id, player2_id=None):
         "last_updated": time.time(),
         "turn_started_at": time.time(),
         "total_think_time": {"black": 0, "white": 0},
+        "home_redirect": False,
     }
 
 
@@ -208,7 +216,21 @@ def profile_page():
     user = current_user()
     db   = get_db()
 
-    # Game history
+    HISTORY_PER_PAGE = 20
+    page = request.args.get("page", 1, type=int)
+    if page < 1:
+        page = 1
+
+    total_games = db.execute(
+        "SELECT COUNT(*) as c FROM game_history WHERE player1_id=? OR player2_id=?",
+        (user["id"], user["id"])
+    ).fetchone()["c"]
+    total_pages = max(1, (total_games + HISTORY_PER_PAGE - 1) // HISTORY_PER_PAGE)
+    if page > total_pages:
+        page = total_pages
+    offset = (page - 1) * HISTORY_PER_PAGE
+
+    # Game history (paginé)
     rows = db.execute("""
         SELECT gh.*, u1.username as p1_name, u2.username as p2_name,
                uw.username as winner_name
@@ -217,9 +239,33 @@ def profile_page():
         JOIN users u2 ON gh.player2_id = u2.id
         LEFT JOIN users uw ON gh.winner_id = uw.id
         WHERE gh.player1_id=? OR gh.player2_id=?
-        ORDER BY gh.played_at DESC LIMIT 20
-    """, (user["id"], user["id"])).fetchall()
+        ORDER BY gh.played_at DESC LIMIT ? OFFSET ?
+    """, (user["id"], user["id"], HISTORY_PER_PAGE, offset)).fetchall()
     history = [dict(r) for r in rows]
+
+    # Ensemble des ids de parties favorites de l'utilisateur (pour cocher l'étoile)
+    favorite_ids = {
+        row["game_id"] for row in
+        db.execute("SELECT game_id FROM favorites WHERE user_id=?", (user["id"],)).fetchall()
+    }
+    for g in history:
+        g["is_favorite"] = g["id"] in favorite_ids
+
+    # Parties favorites (toutes, indépendamment de la pagination)
+    fav_rows = db.execute("""
+        SELECT gh.*, u1.username as p1_name, u2.username as p2_name,
+               uw.username as winner_name
+        FROM favorites fav
+        JOIN game_history gh ON fav.game_id = gh.id
+        JOIN users u1 ON gh.player1_id = u1.id
+        JOIN users u2 ON gh.player2_id = u2.id
+        LEFT JOIN users uw ON gh.winner_id = uw.id
+        WHERE fav.user_id=?
+        ORDER BY fav.created_at DESC
+    """, (user["id"],)).fetchall()
+    favorites = [dict(r) for r in fav_rows]
+    for g in favorites:
+        g["is_favorite"] = True
 
     # Friends
     friends = db.execute("""
@@ -247,10 +293,45 @@ def profile_page():
     return render_template("profile.html",
                            user=dict(user),
                            history=history,
+                           favorites=favorites,
+                           page=page,
+                           total_pages=total_pages,
                            friends=friends,
                            pending=pending)
 
 
+@app.route("/favorites/toggle", methods=["POST"])
+@login_required
+def favorites_toggle():
+    data    = request.get_json()
+    game_id = data.get("game_id")
+    user    = current_user()
+    db      = get_db()
+
+    # L'utilisateur doit avoir participé à la partie pour pouvoir la favoriser
+    row = db.execute(
+        "SELECT id FROM game_history WHERE id=? AND (player1_id=? OR player2_id=?)",
+        (game_id, user["id"], user["id"])
+    ).fetchone()
+    if not row:
+        return jsonify({"error": "Partie introuvable"}), 404
+
+    existing = db.execute(
+        "SELECT id FROM favorites WHERE user_id=? AND game_id=?",
+        (user["id"], game_id)
+    ).fetchone()
+
+    if existing:
+        db.execute("DELETE FROM favorites WHERE id=?", (existing["id"],))
+        db.commit()
+        return jsonify({"ok": True, "favorite": False})
+    else:
+        db.execute("INSERT INTO favorites VALUES (?,?,?,?)",
+                   (str(uuid.uuid4()), user["id"], game_id, time.time()))
+        db.commit()
+        return jsonify({"ok": True, "favorite": True})
+
+    
 @app.route("/game/<game_id>")
 @login_required
 def game_page(game_id):
@@ -551,7 +632,20 @@ def get_state(game_id):
         "player_names":     names,
         "turn_started_at":  game["turn_started_at"],
         "total_think_time": game.get("total_think_time", {"black": 0, "white": 0}),
+        "home_redirect": game.get("home_redirect", False),
     })
+
+@app.route("/leave_game", methods=["POST"])
+@login_required
+def leave_game():
+    data      = request.get_json()
+    game_id   = data.get("game_id")
+    player_id = data.get("player_id")
+
+    if game_id in games and player_id in games[game_id]["players"]:
+        games[game_id]["home_redirect"] = True
+
+    return jsonify({"ok": True})
 
 
 @app.route("/move", methods=["POST"])
