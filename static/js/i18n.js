@@ -52,6 +52,7 @@ const TRANSLATIONS = {
     // Profile
     profile_title:   "Profil",
     friends_title:   "Amis",
+    favorites_title: "Parties favorites",
     search_placeholder: "Chercher un pseudo…",
     pending_requests:"Demandes reçues",
     my_friends:      "Mes amis",
@@ -141,6 +142,7 @@ const TRANSLATIONS = {
     // Profile
     profile_title:   "Профайл",
     friends_title:   "Найзууд",
+    favorites_title: "Дуртай тоглоомууд",
     search_placeholder: "Хэрэглэгч хайх…",
     pending_requests:"Ирсэн хүсэлтүүд",
     my_friends:      "Миний найзууд",
