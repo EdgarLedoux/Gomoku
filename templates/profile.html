@@ -111,6 +111,7 @@
                     <span class="badge-pending">–</span>
                   {% endif %}
                 </td>
+                <td class="mono">{{ g.moves_json | count_moves }}</td>
                 <td><a href="/replay/{{ g.id }}" class="btn btn-ghost btn-sm" data-i18n="replay_btn">▶</a></td>
                 <td>
                   <button class="fav-btn active" id="fav-btn-{{ g.id }}"
